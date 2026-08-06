@@ -43,6 +43,52 @@
             cursor: not-allowed;
         }
 
+        /* ===== 第三关：植物大战僵尸·质量打击 ===== */
+        #level3View { display: none; }
+        #level3View.active { display: block; }
+        .pvz-stage {
+            position: relative;
+            background: linear-gradient(180deg,#5a9e3a,#3d7a2a);
+            border: 4px solid #5d4037;
+            border-radius: 10px;
+            overflow: hidden;
+            width: 100%;
+        }
+        .pvz-stage #pvzCanvas {
+            display:block; margin:0 auto; width:100%; height:auto; max-width:min(470px,94vw); max-height:88dvh; max-height:88vh; aspect-ratio:840/1280; touch-action:none; cursor:default;
+        }
+        .pvz-stage .pscreen {
+            position: absolute; top:0; left:0; right:0; bottom:0;
+            display:flex; flex-direction:column; justify-content:center; align-items:center;
+            background: rgba(0,0,0,0.75); z-index:20; text-align:center;
+        }
+        .pvz-stage .ptitle { font-size:clamp(20px,5vw,34px); font-weight:bold; color:#ffeb3b; margin-bottom:8px; padding:0 10px; }
+        .pvz-stage .psub { color:#c8e6c9; font-size:clamp(11px,2.5vw,15px); margin-bottom:14px; line-height:1.7; padding:0 8px; }
+        .pvz-stage .pbtn {
+            padding: clamp(8px,2vw,13px) clamp(22px,5vw,40px);
+            font-size: clamp(13px,3vw,18px); font-weight:bold; border:none;
+            border-radius:30px; cursor:pointer;
+            background:linear-gradient(135deg,#ffeb3b,#8bc34a); color:#1a3a0a;
+            box-shadow:0 4px 20px rgba(139,195,74,.5); margin:6px;
+        }
+        /* 全屏模式：第三关铺满 */
+        body.pvz-fullpage {
+            justify-content: flex-start;
+            padding: 0;
+            overflow: hidden;
+            touch-action: none;
+        }
+        body.pvz-fullpage .game-container {
+            max-width:100vw; width:100%; height:100dvh; height:100vh;
+            border-radius:0; border:none; display:flex; flex-direction:column; padding:0;
+        }
+        body.pvz-fullpage .level-nav { padding:clamp(4px,1vw,8px); margin-bottom:0; flex-wrap:nowrap; justify-content:center; gap:clamp(3px,0.6vw,6px); }
+        body.pvz-fullpage .level-nav-btn { padding:clamp(3px,0.8vw,6px) clamp(6px,1.5vw,14px); font-size:clamp(9px,2vw,13px); white-space:nowrap; }
+        body.pvz-fullpage #level3View { flex:1; display:flex !important; flex-direction:column; min-height:0; padding:clamp(4px,1vw,8px); }
+        body.pvz-fullpage #pvzGameRoot { flex:1; min-height:0; position:relative; display:flex; align-items:center; justify-content:center; padding:clamp(4px,1vw,10px); }
+        body.pvz-fullpage .pvz-stage { width:auto; height:auto; max-height:92dvh; max-height:92vh; border-width:3px; }
+        body.pvz-fullpage .pvz-stage #pvzCanvas { width:auto; height:auto; max-width:min(470px,92vw); max-height:88dvh; max-height:88vh; aspect-ratio:840/1280; display:block; margin:0 auto; object-fit:fill; }
+
         /* ===== 第二关 浇水养成 ===== */
         #level2View {
             display: none;
@@ -991,7 +1037,8 @@
     <div class="game-container" id="app">
         <div class="level-nav">
             <button class="level-nav-btn active" id="navL1Btn" onclick="switchLevel(1)">1️⃣ 质量消消乐</button>
-            <button class="level-nav-btn" id="navL2Btn" onclick="switchLevel(2)" disabled>2️⃣ 浇水养成</button>
+            <button class="level-nav-btn" id="navL2Btn" onclick="switchLevel(2)">2️⃣ 浇水养成</button>
+            <button class="level-nav-btn" id="navL3Btn" onclick="switchLevel(3)">3️⃣ 植物大战僵尸</button>
         </div>
 
         <!-- 第一关：消消乐 -->
@@ -1058,7 +1105,16 @@
                 </div>
                 <div class="lvl2-right-col" id="bucketTray"></div>
             </div>
-            <div class="lvl2-hint" id="lvl2Hint">拖动右侧水桶到中央水壶浇水</div>
+            <div class="lvl2-hint" id="lvl2Hint" style="display:none;">拖动右侧水桶到中央水壶浇水</div>
+        </div>
+
+        <!-- 第三关：植物大战僵尸·质量打击 -->
+        <div id="level3View">
+            <div class="lvl2-header">
+                <div class="lvl2-title">🌱 第三关 · 植物大战僵尸</div>
+                <div class="timer-display" id="lvl3Timer">00:00</div>
+            </div>
+            <div id="pvzGameRoot" style="position:relative;width:100%;"></div>
         </div>
     </div> <!-- end game-container --><div class="overlay" id="rulesOverlay">
         <div class="overlay-content">
@@ -1094,6 +1150,7 @@
             <div class="rank-tabs">
                 <button class="rank-tab active" data-tab="global" onclick="switchRankTab('global')">🌳 质量树排行</button>
                 <button class="rank-tab" data-tab="personal" onclick="switchRankTab('personal')">👤 个人排行</button>
+                <button class="rank-tab" data-tab="total" onclick="switchRankTab('total')">⏱️ 总时长排行</button>
             </div>
             <div class="rank-list" id="rankList">
                 <div class="rank-empty">暂无记录，快来挑战吧！</div>
@@ -1735,6 +1792,21 @@
                 return JSON.parse(localStorage.getItem('globalRankings') || '[]');
             } catch (e) { return []; }
         }
+        function getTotalRankings() {
+            try { return JSON.parse(localStorage.getItem('totalRankings') || '[]'); }
+            catch (e) { return []; }
+        }
+        function saveTotalRanking(totalTime) {
+            var now = new Date();
+            var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+            var entry = { time: totalTime, date: dateStr };
+            var list = getTotalRankings();
+            list.push(entry);
+            list.sort(function(a,b){ return a.time - b.time; });
+            if (list.length > 100) list.length = 100;
+            localStorage.setItem('totalRankings', JSON.stringify(list));
+        }
+
 
         function saveRanking(time, score, level) {
             var now = new Date();
@@ -1761,13 +1833,35 @@
         }
 
         function renderRankings() {
+            rankList.innerHTML = '';
+            if (currentRankTab === 'total') {
+                var tdata = getTotalRankings();
+                if (tdata.length === 0) {
+                    rankList.innerHTML = '<div class="rank-empty">暂无记录，通关全部三关后产生总时长！</div>';
+                    return;
+                }
+                tdata.sort(function(a, b) { return a.time - b.time; });
+                for (var i = 0; i < tdata.length && i < 100; i++) {
+                    var e = tdata[i];
+                    var item = document.createElement('div');
+                    item.className = 'rank-item';
+                    var numClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
+                    var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '' + (i+1);
+                    item.innerHTML = '<div class="rank-num ' + numClass + '">' + medal + '</div><div class="rank-name">' + (e.date || '未知') + '</div><div class="rank-time">⏱️ ' + formatTime(e.time) + '</div>';
+                    rankList.appendChild(item);
+                }
+                var cnt = document.createElement('div');
+                cnt.style.cssText = 'text-align:center;color:#689f38;font-size:12px;margin-top:8px;';
+                cnt.textContent = '共 ' + tdata.length + ' 条总时长记录（前100名）';
+                rankList.appendChild(cnt);
+                return;
+            }
             var data = currentRankTab === 'global' ? getGlobalRankings() : getPersonalRankings();
             if (data.length === 0) {
                 rankList.innerHTML = '<div class="rank-empty">暂无记录，快来挑战吧！</div>';
                 return;
             }
             data.sort(function(a, b) { return a.time - b.time; });
-            rankList.innerHTML = '';
             var maxShow = currentRankTab === 'global' ? 100 : data.length;
             for (var i = 0; i < data.length && i < maxShow; i++) {
                 var entry = data[i];
@@ -1859,7 +1953,7 @@
         // ==================== 第二关：浇水养成 ====================
         var currentLevel = 1;
         var lvl1Unlocked = true; // 第一关默认已解锁
-        var lvl2Unlocked = false; // 第二关需通关第一关后解锁
+        var lvl2Unlocked = true; // 第二关需通关第一关后解锁
 
         // 8条质量红线（第二关配置：水壶关键词 + 简要重点内容）
         var REDLINE_STAGES = [
@@ -1902,36 +1996,342 @@
         };
 
         var dragIdx = null;
+        // ==================== 第三关：植物大战僵尸·质量打击 ====================
+        var lvl3 = { started:false, seconds:0, timer:null };
+        var pvzTotalTimeStart = 0;
+
+        // 8个质量僵尸及对应内容子弹
+        var pvzBOSS = [
+            { name:'3N原则',   content:['不接收不合格品','不制造不合格品','不传递不合格品'], color:'#e91e63', icon:'🧟' },
+            { name:'3检查',    content:['自检','互检','督检'], color:'#ff9800', icon:'🧟' },
+            { name:'0文化',    content:['0事故','0缺陷','0容忍'], color:'#9c27b0', icon:'🧟' },
+            { name:'3按原则',  content:['按标准作业','按标准反应','按标准升级'], color:'#2196f3', icon:'🧟' },
+            { name:'6发现',    content:['与众不同的','有严重明显缺陷的','没有规格的','突然增多的','被客户投诉的','客户敏感的'], color:'#00bcd4', icon:'🧟' },
+            { name:'5及时',    content:['及时发现','及时反馈','及时纠正','及时预防','及时规范化'], color:'#4caf50', icon:'🧟' },
+            { name:'4不放过',  content:['事故原因未查清不放过','责任人未处理不放过','整改措施未落实不放过','有关人员未受到教育不放过'], color:'#ff5722', icon:'🧟' },
+            { name:'质量红线的处罚', content:['书面警告','严重书面警告','解除劳动合同'], color:'#607d8b', icon:'💀' }
+        ];
+        // 两波分配：第一波前4个，第二波后4个
+        var pvzWAVE = [
+            [0,1,2,3],
+            [4,5,6,7]
+        ];
+        var pvzW=840, pvzH=1280;
+        var pvzLanes=[220,420,620]; // 3条窄车道（列位置x中心，僵尸自上而下移动）
+        var pvzLoseY=932; // 底部防线：僵尸中心到达即触碰小人→爆炸失败
+        var pvzPersonX=420, pvzPersonY=984; // 底部防守小人位置（居中）
+        var pvzBulletRowTop=1040; // 下方子弹卡片区起始y（与僵尸行进路线分隔，互不干扰）
+        var pvzRunning=false, pvzWave=1, pvzWaveIdx=0, pvzGameTimer=0, pvzTimerInterval=null, pvzAnimId=null, pvzParticleAnimId=null;
+        var pvzZombies=[], pvzBullets=[];
+        var pvzDefeated={}, pvzSpawnTimer=null, pvzParticles=[];
+
+        function pvzShuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+        function pvzSetup(){
+            var root=document.getElementById('pvzGameRoot');
+            if(!root) return null;
+            if(document.getElementById('pvzCanvas')) return document.getElementById('pvzCanvas');
+            root.innerHTML='<div class="pvz-stage" id="pvzStage">'
+                +'<canvas id="pvzCanvas" width="840" height="1280"></canvas>'
+                +'<div class="pscreen" id="pStartScreen"><div class="ptitle">🌻 植物大战僵尸 · 质量打击</div>'
+                +'<div class="psub">僵尸自上而下袭来！点击下方与僵尸对应的正确内容卡片即可隔空打击。<br>每打开一波自动显示该波卡片；若僵尸接触到最下方的小人就会爆炸失败，全部僵尸被击倒即通关（显示击败全部僵尸总时长）。<br>卡片用过后变色不可再用</div>'
+                +'<button class="pbtn" id="pStartBtn">开始</button></div>'
+                +'<div class="pscreen" id="pWaveScreen" style="display:none"><div class="ptitle">⭐ 第一波通过！</div>'
+                +'<div class="psub">第2波僵尸即将来袭，继续打击！</div>'
+                +'<button class="pbtn" id="pNextWaveBtn">进入第二波</button></div>'
+                +'<div class="pscreen" id="pWinScreen" style="display:none"><div class="ptitle">🎉 恭喜您已通关！</div>'
+                +'<div class="psub" id="pWinSub">所有质量僵尸全部倒地！</div>'
+                +'<button class="pbtn" id="pRetryAllBtn">再玩一次</button></div>'
+                +'<div class="pscreen" id="pLoseScreen" style="display:none"><div class="ptitle">💀 游戏失败</div>'
+                +'<div class="psub" id="pLoseReason">僵尸接触到了底部的小人，爆炸了！</div>'
+                +'<button class="pbtn" id="pRetryBtn">重新开始</button></div>'
+                +'</div>';
+            return document.getElementById('pvzCanvas');
+        }
+
+        function pvzRoundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+
+        // ---- 僵尸类（自上而下移动；车道Lane决定所在列x） ----
+        function pvzZombie(bossIdx, lane, speed, delayMs){
+            this.bossIdx=bossIdx; this.data=pvzBOSS[bossIdx]; this.lane=lane;
+            this.width=108; this.height=92; this.speed=speed;
+            this.x=pvzLanes[lane]-this.width/2; this.y=-this.height; // 从画布顶部外出现，向下移动
+            this.spawnTime=Date.now()+delayMs; this.moving=false; this.startTime=0;
+            this.alive=true; this.hitFlash=0; this.content=this.data.content.slice();
+        }
+        pvzZombie.prototype.startMoving=function(){ if(!this.moving){this.moving=true;this.startTime=Date.now();} };
+        pvzZombie.prototype.update=function(){
+            if(!this.alive) return null;
+            if(!this.moving){ if(Date.now()>=this.spawnTime) this.startMoving(); return null; }
+            var el=Date.now()-this.startTime, p=Math.min(el/this.speed,1);
+            this.y=-this.height+(pvzLoseY+this.height)*p;
+            if(this.y>=pvzLoseY){ return 'reached'; } // 触碰底部小人防线
+            return null;
+        };
+        pvzZombie.prototype.draw=function(ctx){
+            if(!this.alive) return;
+            var s=this.width/130; // 比例缩放系数（僵尸按画布缩小同步缩放）
+            var cx=this.x+this.width/2, cy=this.y+this.height/2;
+            if(!this.moving) ctx.globalAlpha=0.4;
+            // 阴影
+            ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.ellipse(cx,this.y+this.height+6,55*s,10*s,0,0,Math.PI*2); ctx.fill();
+            // 身躯（植物大战僵尸）
+            var g=ctx.createRadialGradient(cx-10*s,cy-10*s,5*s,cx,cy,52*s); g.addColorStop(0,'#4a7a2a');g.addColorStop(0.7,'#2e5a1a');g.addColorStop(1,'#1b3a0a');
+            ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(cx,cy,47*s,33*s,0,0,Math.PI*2); ctx.fill();
+            if(this.hitFlash>0){ ctx.fillStyle='rgba(255,255,255,'+this.hitFlash+')'; ctx.beginPath(); ctx.ellipse(cx,cy,47*s,33*s,0,0,Math.PI*2); ctx.fill(); this.hitFlash-=0.05; }
+            // 眼睛
+            ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(cx-14*s,cy-6*s,8*s,9*s,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(cx+14*s,cy-6*s,8*s,9*s,0,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#1a1a1a'; ctx.beginPath(); ctx.arc(cx-14*s,cy-6*s,4*s,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx+14*s,cy-6*s,4*s,0,Math.PI*2); ctx.fill();
+            // 嘴
+            ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx,cy+6*s,12*s,0.1,Math.PI-0.1); ctx.stroke();
+            // 僵尸名
+            var tw=ctx.measureText(this.data.name).width+16; ctx.fillStyle='rgba(0,0,0,0.72)'; pvzRoundRect(ctx,cx-tw/2,this.y+this.height-30,tw,23,6); ctx.fill();
+            ctx.fillStyle=this.data.color; ctx.font='bold 12px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(this.data.name,cx,this.y+this.height-19);
+            ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='10px "Microsoft YaHei"'; ctx.fillText('血量 '+this.content.length, cx, this.y+this.height+10);
+            if(!this.moving){ ctx.globalAlpha=1; ctx.fillStyle='rgba(255,235,59,0.6)'; ctx.font='12px "Microsoft YaHei"'; var cd=Math.max(0,Math.ceil((this.spawnTime-Date.now())/1000)); ctx.fillText(cd+'s 后出现',cx,this.y-14); }
+        };
+        pvzZombie.prototype.hitTest=function(px,py){ return this.moving&&px>=this.x&&px<=this.x+this.width&&py>=this.y-15&&py<=this.y+this.height; };
+        pvzZombie.prototype.matchContent=function(t){ var i=this.content.indexOf(t); if(i!==-1){this.content.splice(i,1);this.hitFlash=1.0;return true;} return false; };
+        pvzZombie.prototype.isDefeated=function(){ return this.content.length===0; };
+
+        // ---- 子弹（内容卡） ----
+        function pvzBullet(bossIdx, contentText, x,y,w,h){ this.bossIdx=bossIdx; this.contentText=contentText; this.x=x;this.y=y;this.w=w;this.h=h; this.used=false; }
+        function pvzFitFont(ctx,text,w,maxSize){
+            var size=maxSize;
+            while(size>7){ ctx.font='bold '+size+'px "Microsoft YaHei"'; if(ctx.measureText(text).width<=w-10) break; size--; }
+            return size;
+        }
+        pvzBullet.prototype.draw=function(ctx){
+            var cx=this.x+this.w/2,cy=this.y+this.h/2, r=Math.min(13,this.h/2);
+            ctx.save(); ctx.shadowColor='rgba(0,0,0,0.2)'; ctx.shadowBlur=3;
+            if(this.used){
+                // 已使用的子弹：整体颜色变暗变绿，标记已用，不可再使用
+                ctx.fillStyle='#c5e1a5'; pvzRoundRect(ctx,this.x,this.y,this.w,this.h,r); ctx.fill();
+                ctx.shadowBlur=0; ctx.strokeStyle='#689f38'; ctx.lineWidth=1.5; pvzRoundRect(ctx,this.x,this.y,this.w,this.h,r); ctx.stroke();
+                ctx.fillStyle='#4a7a2a'; ctx.font='bold '+pvzFitFont(ctx,'\u2713 '+this.contentText,this.w,Math.max(9,Math.floor(this.h*0.6)))+'px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('\u2713 '+this.contentText, cx, cy);
+                ctx.restore(); return;
+            }
+            ctx.fillStyle='#fffde7'; pvzRoundRect(ctx,this.x,this.y,this.w,this.h,r); ctx.fill();
+            ctx.shadowBlur=0; ctx.strokeStyle=pvzBOSS[this.bossIdx].color; ctx.lineWidth=2; pvzRoundRect(ctx,this.x,this.y,this.w,this.h,r); ctx.stroke();
+            ctx.fillStyle='#1a3a0a'; ctx.font='bold '+pvzFitFont(ctx,this.contentText,this.w,Math.max(11,Math.floor(this.h*0.6)))+'px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(this.contentText,cx,cy);
+            ctx.restore();
+        };
+        pvzBullet.prototype.hitTest=function(px,py){ return px>=this.x-6&&px<=this.x+this.w+6&&py>=this.y-6&&py<=this.y+this.h+6; };
+
+        function pvzSpawnWave(){
+            // 当前波次的僵尸按序交替出现（中等难度 + 速度微随机营造趣味）
+            var waveList=pvzWAVE[pvzWave-1];
+            var baseSpeed=pvzWave===1?11000:9000;
+            var delay=0;
+            for(var i=0;i<waveList.length;i++){
+                var bossIdx=waveList[i];
+                var lane=Math.floor(Math.random()*pvzLanes.length);
+                // 速度在 ±15% 内随机，避免千篇一律
+                var speed=Math.round(baseSpeed*(0.85+Math.random()*0.3));
+                var z=new pvzZombie(bossIdx,lane,speed,delay);
+                delay+=2000+Math.floor(Math.random()*1800); // 交替出现的随机间隔
+                pvzZombies.push(z);
+            }
+        }
+        function pvzGenBullets(wave){
+            pvzBullets=[];
+            wave = (typeof wave==='number') ? wave : pvzWave;
+            // 仅生成当前波次对应的卡片内容（第一波/第二波分开，不全部堆在一起）
+            var all=[];
+            var waveList=pvzWAVE[wave-1];
+            for(var k=0;k<waveList.length;k++){ var bi=waveList[k]; var boss=pvzBOSS[bi]; for(var j=0;j<boss.content.length;j++){ all.push({bi:bi,text:boss.content[j]}); } }
+            pvzShuffle(all);
+            // 布置到画布下方卡片区（与僵尸行进路线分开，互不遮挡）
+            var cardW=244, cardH=26, gap=8;
+            var cols=Math.max(2,Math.floor((pvzW-24+gap)/(cardW+gap)));
+            var rows=Math.ceil(all.length/cols);
+            var gridH=rows*(cardH+gap);
+            var gridW=cols*(cardW+gap)-gap;
+            var margin=Math.max(10,Math.floor((pvzW-gridW)/2)); // 横向居中
+            var bottomSpace=(pvzH-6)-pvzBulletRowTop; // 卡片区可用的纵向高度
+            var startY=pvzBulletRowTop+Math.floor((bottomSpace-gridH)/2); // 纵向居中
+            for(var c=0;c<all.length;c++){
+                var item=all[c];
+                var col=c%cols, row=Math.floor(c/cols);
+                var x=margin+col*(cardW+gap);
+                var y=startY+row*(cardH+gap);
+                var b=new pvzBullet(item.bi,item.text,x,y,cardW,cardH);
+                b.used=false;
+                pvzBullets.push(b);
+            }
+        }
+        // ---- 绘制 ----
+        function pvzDrawBg(ctx){
+            var g=ctx.createLinearGradient(0,0,0,pvzH); g.addColorStop(0,'#6baf4a'); g.addColorStop(1,'#3d7a2a'); ctx.fillStyle=g; ctx.fillRect(0,0,pvzW,pvzH);
+            // 草格
+            ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=3;
+            for(var x=0;x<pvzW;x+=200){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,pvzH); ctx.stroke(); }
+            for(var y=0;y<pvzH;y+=200){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(pvzW,y); ctx.stroke(); }
+        }
+        function pvzDrawQuality(ctx){
+            // 底部防线（水平）：僵尸到达该线即接触小人
+            ctx.strokeStyle='#e53935'; ctx.lineWidth=8; ctx.beginPath(); ctx.moveTo(16,pvzLoseY+12); ctx.lineTo(pvzW-16,pvzLoseY+12); ctx.stroke();
+            // 防线标注（放在左侧上方，避开中间的小人）
+            ctx.fillStyle='rgba(183,28,28,0.85)'; pvzRoundRect(ctx,180,pvzLoseY-34,240,36,18); ctx.fill();
+            ctx.fillStyle='#fff'; ctx.font='bold 24px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('⬇ 僵尸防线',300,pvzLoseY-16);
+            pvzDrawPerson(ctx);
+        }
+        function pvzDrawPerson(ctx){
+            // 最下方防守的小人（质量守卫），不进入下方卡片区
+            var px=pvzPersonX, py=pvzPersonY;
+            ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.beginPath(); ctx.ellipse(px,py+44,52,14,0,0,Math.PI*2); ctx.fill();
+            // 身体
+            ctx.fillStyle='#2e7d32'; ctx.beginPath(); ctx.ellipse(px,py+16,48,40,0,0,Math.PI*2); ctx.fill();
+            // 头
+            ctx.fillStyle='#ffe0b2'; ctx.beginPath(); ctx.arc(px,py-40,22,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#4e342e'; ctx.beginPath(); ctx.arc(px-8,py-44,5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(px+8,py-44,5,0,Math.PI*2); ctx.fill();
+            // 盾牌
+            ctx.fillStyle='#1565c0'; pvzRoundRect(ctx,px+30,py-12,30,44,14); ctx.fill();
+            ctx.strokeStyle='#0d47a1'; ctx.lineWidth=4; pvzRoundRect(ctx,px+30,py-12,30,44,14); ctx.stroke();
+            ctx.fillStyle='#fff'; ctx.font='bold 20px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('质',px+45,py+10);
+        }
+        function pvzDrawCardPanel(ctx){
+            // 下方子弹卡片区背景面板（与僵尸行进路线分隔）
+            ctx.fillStyle='rgba(40,60,25,0.45)'; pvzRoundRect(ctx,0,pvzBulletRowTop-12,pvzW,pvzH-(pvzBulletRowTop-12),24); ctx.fill();
+            ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(0,pvzBulletRowTop-12); ctx.lineTo(pvzW,pvzBulletRowTop-12); ctx.stroke();
+        }
+        function pvzDrawUI(ctx){
+            var tx=pvzW/2;
+            ctx.fillStyle='rgba(0,0,0,0.6)'; pvzRoundRect(ctx,tx-140,16,280,64,20); ctx.fill();
+            ctx.fillStyle='#ffeb3b'; ctx.font='bold 34px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('⏱ '+pvzGameTimer+'s',tx,48);
+            ctx.fillStyle='rgba(0,0,0,0.55)'; pvzRoundRect(ctx,16,16,230,56,16); ctx.fill();
+            ctx.fillStyle='#e8f5e9'; ctx.font='bold 24px "Microsoft YaHei"'; ctx.textAlign='left'; ctx.fillText('第'+pvzWave+'波 · '+pvzDefeatedCount()+'/8',30,44);
+        }
+        function pvzDefeatedCount(){ var n=0; for(var k in pvzDefeated){ if(pvzDefeated[k]) n++; } return n; }
+        function pvzRender(ctx){
+            ctx.clearRect(0,0,pvzW,pvzH); pvzDrawBg(ctx); pvzDrawCardPanel(ctx); pvzDrawQuality(ctx);
+            for(var i=0;i<pvzZombies.length;i++) pvzZombies[i].draw(ctx);
+            for(var j=0;j<pvzBullets.length;j++) pvzBullets[j].draw(ctx);
+            pvzDrawUI(ctx);
+        }
+        function pvzGetPos(e,canvas){ var r=canvas.getBoundingClientRect(); var sx=pvzW/r.width, sy=pvzH/r.height; var cx=(e.clientX!==undefined?e.clientX:(e.touches?e.touches[0].clientX:0)); var cy=(e.clientY!==undefined?e.clientY:(e.touches?e.touches[0].clientY:0)); return {x:(cx-r.left)*sx,y:(cy-r.top)*sy}; }
+
+        function pvzFireBullet(b){
+            if(b.used) return;
+            var target=null;
+            // 找到与卡片内容对应的、仍在场上存活的僵尸
+            for(var i=0;i<pvzZombies.length;i++){
+                var z=pvzZombies[i];
+                if(z.alive&&z.moving&&z.bossIdx===b.bossIdx&&z.content.indexOf(b.contentText)!==-1){ target=z; break; }
+            }
+            if(!target){
+                showToast('\u26A0 对应僵尸已被击败或尚未出现');
+                return;
+            }
+            b.used=true;
+            target.matchContent(b.contentText);
+            var cx=target.x+target.width/2, cy=target.y+target.height/2;
+            pvzSpawnParticles(cx,cy,'#ffeb3b');
+            if(target.isDefeated()){
+                target.alive=false; pvzDefeated[target.bossIdx]=true;
+                pvzSpawnParticles(cx,cy,pvzBOSS[target.bossIdx].color);
+                pvzCheckWin();
+            }
+        }
+        function pvzBindEvents(canvas){
+            if(canvas.dataset.pbound) return; canvas.dataset.pbound='1';
+            canvas.addEventListener('pointerdown',function(e){ if(!pvzRunning) return; e.preventDefault();
+                var p=pvzGetPos(e,canvas);
+                for(var i=pvzBullets.length-1;i>=0;i--){ var b=pvzBullets[i]; if(!b.used&&b.hitTest(p.x,p.y)){ pvzFireBullet(b); break; } } });
+            document.addEventListener('touchmove',function(e){ if(canvas.parentNode&&canvas.parentNode.contains(e.target)) e.preventDefault(); },{passive:false});
+        }
+
+        function pvzSpawnParticles(x,y,color){ for(var i=0;i<18;i++){ pvzParticles.push({x:x,y:y,vx:(Math.random()-0.5)*9,vy:(Math.random()-0.5)*9-2,life:1,color:color,size:3+Math.random()*6}); } }
+        function pvzUpdateParticles(){ for(var i=pvzParticles.length-1;i>=0;i--){ var p=pvzParticles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.25; p.life-=0.02; if(p.life<=0) pvzParticles.splice(i,1); } }
+        function pvzDrawParticles(ctx){ for(var i=0;i<pvzParticles.length;i++){ var p=pvzParticles[i]; ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill(); } ctx.globalAlpha=1; }
+
+        function pvzCheckWin(){
+            // 当前波僵尸是否全部倒地
+            var waveList=pvzWAVE[pvzWave-1]; var all=true;
+            for(var i=0;i<waveList.length;i++){ if(!pvzDefeated[waveList[i]]){ all=false; break; } }
+            if(all){ if(pvzWave===1){ pvzShowWave(); } else { pvzShowWin(); } }
+        }
+
+        function pvzLoop(ctx){
+            if(!pvzRunning) return;
+            for(var i=pvzZombies.length-1;i>=0;i--){ var z=pvzZombies[i]; var r=z.update(); if(r==='reached'){ var zx=z.x+z.width/2, zy=z.y+z.height/2; for(var b=0;b<3;b++){ pvzSpawnParticles(zx,zy,b===0?'#ffeb3b':'#ff7043'); pvzSpawnParticles(zx,zy,'#e53935'); } pvzGameOver('僵尸接触到底部的小人，爆炸了！😱'); return; } }
+            pvzRender(ctx); pvzDrawParticles(ctx);
+            pvzAnimId=requestAnimationFrame(function(){ pvzLoop(ctx); });
+        }
+        function pvzStartTimer(){ pvzGameTimer=0; clearInterval(pvzTimerInterval); pvzTimerInterval=setInterval(function(){ pvzGameTimer++; var t=document.getElementById('lvl3Timer'); if(t) t.textContent=formatTime(pvzGameTimer); },1000); }
+        function pvzGameOver(reason){ pvzRunning=false; clearInterval(pvzTimerInterval); clearTimeout(pvzSpawnTimer); cancelAnimationFrame(pvzAnimId); cancelAnimationFrame(pvzParticleAnimId); var r=document.getElementById('pLoseReason'); if(r) r.textContent=reason; var ls=document.getElementById('pLoseScreen'); if(ls) ls.style.display='flex'; }
+        function pvzShowWave(){ pvzRunning=false; clearInterval(pvzTimerInterval); clearTimeout(pvzSpawnTimer); cancelAnimationFrame(pvzAnimId); cancelAnimationFrame(pvzParticleAnimId); var s=document.getElementById('pWaveScreen'); if(s) s.style.display='flex'; }
+        function pvzShowWin(){ pvzRunning=false; clearInterval(pvzTimerInterval); clearTimeout(pvzSpawnTimer); cancelAnimationFrame(pvzAnimId); cancelAnimationFrame(pvzParticleAnimId);
+            var used=Math.round(pvzTotalTimeStart>0?(Date.now()-pvzTotalTimeStart)/1000:lvl3.seconds);
+            lvl3.seconds=used;
+            var totalTime=(typeof seconds==='number'?seconds:0)+(lvl2.seconds||0)+used;
+            saveTotalRanking(totalTime);
+            var s=document.getElementById('pWinScreen'); if(s) s.style.display='flex';
+            var sub=document.getElementById('pWinSub'); if(sub) sub.textContent='击败全部僵尸总时长：'+formatTime(used)+' | 三关总时长 '+formatTime(totalTime)+' | 质量文化牢记心中！'; }
+
+        function pvzInitInternal(wave){
+            pvzWave=wave; pvzZombies=[]; pvzParticles=[];
+            if(wave===1){ pvzDefeated={}; }
+            pvzGenBullets(wave); // 每波开始前自动刷新为当前波次对应的卡片内容
+            pvzSpawnWave();
+            pvzStartTimer(); pvzRunning=true;
+            if(pvzAnimId) cancelAnimationFrame(pvzAnimId); if(pvzParticleAnimId) cancelAnimationFrame(pvzParticleAnimId);
+            var cv=document.getElementById('pvzCanvas');
+            pvzAnimId=requestAnimationFrame(function(){ pvzLoop(cv?cv.getContext('2d'):null); });
+            (function pl(){ if(!pvzRunning) return; pvzUpdateParticles(); pvzParticleAnimId=requestAnimationFrame(pl); })();
+        }
+
+        function startLvl3(){
+            lvl3.started=true; lvl3.seconds=0; pvzTotalTimeStart=0;
+            var cv=pvzSetup(); if(!cv) return;
+            pvzBindEvents(cv); pvzGenBullets(1);
+            var ss=document.getElementById('pStartScreen'),ws=document.getElementById('pWinScreen'),ls=document.getElementById('pLoseScreen'),ws2=document.getElementById('pWaveScreen');
+            if(ss) ss.style.display='flex'; if(ws) ws.style.display='none'; if(ls) ls.style.display='none'; if(ws2) ws2.style.display='none';
+            var tl=document.getElementById('lvl3Timer'); if(tl) tl.textContent='00:00';
+            var sb=document.getElementById('pStartBtn'); if(sb){ var nsb=sb.cloneNode(true);sb.parentNode.replaceChild(nsb,sb); nsb.addEventListener('click',function(){ var s=document.getElementById('pStartScreen'); if(s) s.style.display='none'; pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1); }); }
+            var nb=document.getElementById('pNextWaveBtn'); if(nb){ var nnb=nb.cloneNode(true);nb.parentNode.replaceChild(nnb,nb); nnb.addEventListener('click',function(){ var s=document.getElementById('pWaveScreen'); if(s) s.style.display='none'; pvzInitInternal(2); }); }
+            var rb=document.getElementById('pRetryBtn'); if(rb){ var nrb=rb.cloneNode(true);rb.parentNode.replaceChild(nrb,rb); nrb.addEventListener('click',function(){ var s=document.getElementById('pLoseScreen'); if(s) s.style.display='none'; pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1); }); }
+            var ab=document.getElementById('pRetryAllBtn'); if(ab){ var nab=ab.cloneNode(true);ab.parentNode.replaceChild(nab,ab); nab.addEventListener('click',function(){ var s=document.getElementById('pWinScreen'); if(s) s.style.display='none'; pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1); }); }
+        }
+        function enterLevel3(){ switchLevel(3); }
+        function resizePvzCanvas(){ var cv=document.getElementById('pvzCanvas'); if(!cv) return; if(typeof pvzRender==='function'&&cv.getContext){ try{ pvzRender(cv.getContext('2d')); }catch(e){} } }
+
+
         var dragGhost = null;
 
         // ==================== 关卡切换 ====================
         function switchLevel(lv) {
-            if (lv === 2 && !lvl2Unlocked) {
-                showToast('请先通关第一关，再进入第二关');
-                return;
-            }
             currentLevel = lv;
             var v1 = document.getElementById('level1View');
             var v2 = document.getElementById('level2View');
+            var v3 = document.getElementById('level3View');
             var b1 = document.getElementById('navL1Btn');
             var b2 = document.getElementById('navL2Btn');
+            var b3 = document.getElementById('navL3Btn');
             var legend = document.querySelector('.legend-section');
+            v1.style.display = 'none';
+            v2.classList.remove('active');
+            v3.classList.remove('active');
+            b1.classList.remove('active');
+            b2.classList.remove('active');
+            b3.classList.remove('active');
+            if (legend) legend.style.display = 'none';
+            // 全屏模式：仅第三关铺满
+            if (lv === 3) { document.body.classList.add('pvz-fullpage'); }
+            else { document.body.classList.remove('pvz-fullpage'); }
             if (lv === 1) {
                 v1.style.display = 'block';
-                v2.classList.remove('active');
                 b1.classList.add('active');
-                b2.classList.remove('active');
                 if (legend) legend.style.display = 'flex';
-            } else {
-                v1.style.display = 'none';
+            } else if (lv === 2) {
                 v2.classList.add('active');
-                b1.classList.remove('active');
                 b2.classList.add('active');
-                // 第二关不显示第一关的质量红线图例
-                if (legend) legend.style.display = 'none';
-                if (!lvl2.started) {
-                    startLvl2();
-                }
+                if (!lvl2.started) startLvl2();
+            } else {
+                v3.classList.add('active');
+                b3.classList.add('active');
+                if (!lvl3.started) startLvl3();
+                setTimeout(resizePvzCanvas, 60);
             }
         }
 
