@@ -1,0 +1,2250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="HandheldFriendly" content="true">
+    <title>质量树 - 消消乐</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* ===== 关卡导航 ===== */
+        .level-nav {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+            justify-content: center;
+        }
+        .level-nav-btn {
+            background: rgba(46,125,50,0.08);
+            border: 2px solid rgba(46,125,50,0.25);
+            padding: 6px 14px;
+            border-radius: 16px;
+            color: #33691e;
+            font-weight: 700;
+            font-size: clamp(12px,2.5vw,14px);
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .level-nav-btn.active {
+            background: linear-gradient(135deg,#388e3c,#43a047);
+            color: #fff;
+            border-color: #388e3c;
+        }
+        .level-nav-btn:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+        }
+
+        /* ===== 第二关 浇水养成 ===== */
+        #level2View {
+            display: none;
+        }
+        #level2View.active {
+            display: block;
+        }
+
+        .lvl2-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .lvl2-title {
+            font-size: clamp(16px,3.5vw,22px);
+            font-weight: 900;
+            color: #2e7d32;
+        }
+
+        /* 水落下动画 */
+        @keyframes waterDrop {
+            0% { transform: translate(0,0); opacity: 1; }
+            100% { transform: translate(0,60px); opacity: 0; }
+        }
+        .water-splash {
+            position: absolute;
+            font-size: 24px;
+            pointer-events: none;
+            z-index: 10;
+            animation: waterDrop .6s ease-in forwards;
+        }
+
+        /* 三栏布局 */
+        .lvl2-playarea { display:flex; gap:6px; align-items:stretch; min-height:clamp(200px,40vh,320px); }
+        .lvl2-tree-col { flex:0 0 30%; max-width:30%; display:flex; flex-direction:column; }
+        .tree-zone {
+            background:linear-gradient(180deg,#c8e6c9,#a5d6a7);
+            border-radius:12px; padding:8px 4px; text-align:center;
+            flex:1; border:2px solid #66bb6a;
+            box-shadow:inset 0 0 20px rgba(255,255,255,.3);
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            position:relative; min-height:clamp(150px,30vh,240px);
+        }
+        .tree-zone .tree-name-badge {
+            background:rgba(255,255,255,.92); color:#1b5e20;
+            padding:3px 10px; border-radius:14px; font-weight:800;
+            font-size:clamp(9px,2vw,12px); box-shadow:0 2px 6px rgba(0,0,0,.1);
+            white-space:nowrap; max-width:95%; overflow:hidden; text-overflow:ellipsis;
+            margin-bottom:4px;
+        }
+        .tree-zone .big-tree { font-size:clamp(50px,14vw,100px); line-height:1; transition:transform .4s ease; display:block; }
+        .tree-zone .big-tree.watered { animation:treeGrow .6s ease; }
+        .tree-zone .big-tree.wrong { animation:treeShrink .5s ease; }
+        .tree-zone .growth-dots { display:flex; justify-content:center; gap:3px; margin-top:6px; flex-wrap:wrap; }
+
+        .lvl2-center-col { flex:0 0 25%; max-width:25%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+        .water-can-dropzone {
+            width:100%; aspect-ratio:3/4; max-height:100%;
+            background:linear-gradient(180deg,#e3f2fd,#bbdefb);
+            border-radius:16px; border:3px dashed #1565c0;
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            transition:all .2s; position:relative; cursor:default;
+        }
+        .water-can-dropzone .wc-svg { width:clamp(50px,12vw,90px); height:clamp(50px,12vw,90px); transition:transform .3s; }
+        .water-can-dropzone .wc-svg svg { width:100%; height:100%; filter:drop-shadow(0 3px 6px rgba(0,0,0,.25)); }
+        .water-can-dropzone .wc-label { font-size:clamp(8px,1.6vw,11px); color:#1565c0; font-weight:700; margin-top:2px; }
+        .water-can-dropzone.drag-over { background:linear-gradient(180deg,#bbdefb,#90caf9); border-color:#0d47a1; transform:scale(1.04); box-shadow:0 0 20px rgba(21,101,192,.4); }
+        .water-can-dropzone .wc-animate-water { position:absolute; top:-10px; right:-8px; font-size:24px; animation:waterArc .8s ease-in forwards; pointer-events:none; }
+        @keyframes waterArc {
+            0%{transform:translate(0,0) rotate(0deg);opacity:1}
+            60%{transform:translate(-40px,30px) rotate(-20deg);opacity:.8}
+            100%{transform:translate(-80px,60px) rotate(-40deg);opacity:0}
+        }
+
+        /* 水壶向小树自动浇水的水流动画 */
+        .wc-flying-drop {
+            position:fixed;
+            z-index:9998;
+            width:14px;
+            height:14px;
+            border-radius:50%;
+            background:radial-gradient(circle at 35% 30%,#81d4fa,#0288d1);
+            box-shadow:0 0 8px rgba(2,136,209,.7);
+            pointer-events:none;
+            opacity:.95;
+            transition:left .65s cubic-bezier(.3,-.1,.7,1), top .65s cubic-bezier(.3,-.1,.7,1), opacity .65s;
+        }
+        .wc-spray {
+            position:fixed;
+            z-index:9998;
+            pointer-events:none;
+            font-size:12px;
+            line-height:1;
+        }
+        .tree-splash {
+            position:fixed;
+            z-index:9998;
+            pointer-events:none;
+            font-size:26px;
+        }
+        @keyframes treeSplashAnim {
+            0%{transform:translate(-50%,-50%) scale(.4);opacity:1}
+            60%{transform:translate(-50%,-70%) scale(1.2);opacity:.9}
+            100%{transform:translate(-50%,-90%) scale(1.5);opacity:0}
+        }
+
+        .lvl2-right-col { flex:1 1 45%; display:flex; flex-direction:column; gap:6px; justify-content:center; }
+        .bucket-item {
+            background:linear-gradient(135deg,#e8f5e9,#c8e6c9);
+            border-radius:10px; padding:6px 8px; display:flex; align-items:center; gap:6px;
+            cursor:grab; border:2px solid rgba(46,125,50,.2);
+            user-select:none; -webkit-user-select:none; touch-action:none;
+            -webkit-tap-highlight-color:transparent;
+            transition:transform .1s ease,opacity .1s ease,box-shadow .1s ease;
+            will-change:transform;
+        }
+        .bucket-item:active{transform:scale(.97)}
+        .bucket-item.dragging{opacity:.5;transform:scale(.95)}
+        .bucket-item .bucket-ico { flex-shrink:0; width:clamp(22px,4vw,32px); height:clamp(22px,4vw,32px); display:flex; align-items:center; justify-content:center; }
+        .bucket-item .bucket-ico svg { width:100%; height:100%; filter:drop-shadow(0 1px 3px rgba(0,0,0,.15)); }
+        .bucket-item .bucket-text { flex:1; text-align:left; min-width:0; }
+        .bucket-item .bucket-rule { font-size:clamp(10px,2.2vw,13px); color:#33691e; font-weight:600; line-height:1.2; display:block; }
+        .bucket-item.wrong-shake { animation:canteenShake .4s ease; border-color:#e53935; background:linear-gradient(135deg,#ffcdd2,#ef9a9a); }
+        .bucket-item.drag-ghost { position:fixed; z-index:9999; pointer-events:none; width:110px; opacity:.92; box-shadow:0 6px 16px rgba(0,0,0,.25); transform:rotate(-4deg) scale(1.05); cursor:grabbing; }
+        @keyframes treeGrow {
+            0%{transform:scale(1)}
+            50%{transform:scale(1.3);filter:brightness(1.3)}
+            100%{transform:scale(1)}
+        }
+        @keyframes treeShrink {
+            0%{transform:scale(1)}
+            50%{transform:scale(.75) rotate(-5deg);filter:grayscale(.6)}
+            100%{transform:scale(1)}
+        }
+        @keyframes canteenShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+
+        .lvl2-hint {
+            background: rgba(255,255,255,0.8);
+            border-radius: 10px;
+            padding: 8px 12px;
+            text-align: center;
+            color: #33691e;
+            font-size: clamp(12px,2.6vw,15px);
+            font-weight: 600;
+            margin-bottom: 10px;
+            border: 1px solid rgba(46,125,50,0.15);
+        }
+        .lvl2-hint .target-rule {
+            color: #e65100;
+            font-weight: 800;
+        }/* 第二关状态栏 */
+        .lvl2-status {
+            display: flex;
+            justify-content: space-between;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+        .lvl2-status .s-item {
+            background: rgba(0,0,0,0.04);
+            padding: 4px 8px;
+            border-radius: 8px;
+            text-align: center;
+            flex: 1;
+        }
+        .lvl2-status .s-item .s-val {
+            font-size: clamp(14px,3vw,18px);
+            font-weight: 800;
+            color: #2e7d32;
+        }
+        .lvl2-status .s-item .s-lbl {
+            font-size: clamp(9px,2vw,12px);
+            color: #689f38;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.8; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        @keyframes fall {
+            0% { transform: translateY(-60px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes leafFloat {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(3deg); }
+        }
+
+        @keyframes confetti {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(400px) rotate(720deg); opacity: 0; }
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #f9f1b0 0%, #e8f5a0 20%, #c5e88a 50%, #a5d67a 75%, #7cc46b 100%);
+            min-height: 100dvh;
+            min-height: -webkit-fill-available;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: env(safe-area-inset-top, 8px) env(safe-area-inset-right, 8px) env(safe-area-inset-bottom, 8px) env(safe-area-inset-left, 8px);
+            overscroll-behavior: none;
+            -ms-touch-action: manipulation;
+            touch-action: manipulation;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            height: 60vh;
+            background: radial-gradient(ellipse at bottom center, rgba(76, 175, 80, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .game-container {
+            background: linear-gradient(180deg, #f1f8e9 0%, #dcedc8 100%);
+            border-radius: max(10px, 1.8vw);
+            padding: clamp(6px, 1.8vw, 14px);
+            max-width: min(560px, 94vw);
+            width: 100%;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            border: 2px solid #81c784;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: clamp(4px, 0.8vw, 8px);
+            padding: 0 2px;
+        }
+
+        .game-title {
+            font-size: clamp(17px, 4.5vw, 30px);
+            font-weight: 900;
+            color: #2e7d32;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            letter-spacing: 1px;
+        }
+
+        .game-title .icon {
+            display: inline-block;
+            animation: leafFloat 3s ease-in-out infinite;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .timer-display {
+            background: rgba(0, 0, 0, 0.06);
+            padding: clamp(3px, 0.6vw, 6px) clamp(6px, 1.2vw, 12px);
+            border-radius: 14px;
+            color: #33691e;
+            font-size: clamp(11px, 2.8vw, 17px);
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            border: 1px solid rgba(46, 125, 50, 0.2);
+            min-width: clamp(48px, 10vw, 65px);
+            text-align: center;
+        }
+
+        .btn-icon {
+            background: rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(46, 125, 50, 0.2);
+            color: #2e7d32;
+            width: clamp(28px, 6vw, 36px);
+            height: clamp(28px, 6vw, 36px);
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: clamp(13px, 2.8vw, 17px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.15s ease, background 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn-icon:active {
+            background: rgba(46, 125, 50, 0.1);
+            transform: scale(1.1);
+        }
+
+        .tree-progress {
+            background: rgba(0, 0, 0, 0.04);
+            border-radius: clamp(6px, 1.2vw, 10px);
+            padding: clamp(4px, 0.7vw, 8px) clamp(6px, 1.2vw, 12px);
+            margin-bottom: clamp(4px, 0.7vw, 8px);
+            display: flex;
+            align-items: center;
+            gap: clamp(4px, 1vw, 10px);
+            border: 1px solid rgba(46, 125, 50, 0.15);
+        }
+
+        .tree-progress .tree-icon {
+            font-size: clamp(16px, 3.5vw, 22px);
+            animation: leafFloat 4s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+
+        .progress-bar-wrap {
+            flex: 1;
+            height: clamp(8px, 1.8vw, 14px);
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: clamp(4px, 0.8vw, 7px);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #43a047, #66bb6a, #81c784);
+            border-radius: clamp(4px, 0.8vw, 7px);
+            transition: width 0.4s ease;
+            position: relative;
+        }
+
+        .progress-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .progress-text {
+            color: #2e7d32;
+            font-size: clamp(11px, 2.5vw, 13px);
+            font-weight: 600;
+            flex-shrink: 0;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: clamp(4px, 0.7vw, 8px);
+            padding: 0 2px;
+            gap: 3px;
+        }
+
+        .status-item {
+            background: rgba(0, 0, 0, 0.04);
+            padding: clamp(2px, 0.4vw, 5px) clamp(4px, 0.8vw, 8px);
+            border-radius: clamp(4px, 0.7vw, 8px);
+            color: #33691e;
+            font-size: clamp(9px, 2vw, 13px);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex: 1;
+            justify-content: center;
+            white-space: nowrap;
+        }
+
+        .board-wrapper {
+            position: relative;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: clamp(6px, 1.2vw, 10px);
+            padding: clamp(2px, 0.6vw, 5px);
+            border: 2px solid #4caf50;
+            margin-bottom: 6px;
+            overflow: hidden;
+        }
+
+        .board {
+            display: grid;
+            gap: clamp(2px, 0.5vw, 4px);
+            width: 100%;
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+        }
+
+        .cell {
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            border-radius: clamp(3px, 0.7vw, 6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            position: relative;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            border: 1px solid rgba(46, 125, 50, 0.2);
+            overflow: hidden;
+            aspect-ratio: 1;
+            width: 100%;
+            will-change: transform;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .cell:active {
+            transform: scale(0.92);
+        }
+
+        .cell.selected {
+            border-color: #2e7d32;
+            box-shadow: 0 0 clamp(6px, 1.2vw, 12px) rgba(46, 125, 50, 0.5);
+            transform: scale(1.05);
+            z-index: 2;
+        }
+
+        .cell.hint {
+            animation: pulse 0.7s ease-in-out 2;
+            border-color: #fff176;
+            box-shadow: 0 0 clamp(8px, 1.5vw, 14px) rgba(255, 241, 118, 0.4);
+        }
+
+        .cell.matched {
+            animation: pop 0.3s ease-out forwards;
+            pointer-events: none;
+        }
+
+        .cell .tile-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            width: 100%;
+            height: 100%;
+            padding: 1px;
+            overflow: hidden;
+        }
+
+        .cell .tile-emoji {
+            font-size: clamp(18px, 3.2vw, 30px);
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .cell .tile-label {
+            font-size: clamp(8px, 1.6vw, 11px);
+            color: #1b5e20;
+            margin-top: 1px;
+            text-align: center;
+            line-height: 1.1;
+            font-weight: 700;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+            padding: 0 1px;
+            flex-shrink: 0;
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            padding: env(safe-area-inset-top, 12px) env(safe-area-inset-right, 12px) env(safe-area-inset-bottom, 12px) env(safe-area-inset-left, 12px);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .overlay.active {
+            display: flex !important;
+        }
+
+        .overlay-content {
+            background: linear-gradient(180deg, #f1f8e9, #dcedc8);
+            border-radius: clamp(12px, 2.5vw, 18px);
+            padding: clamp(14px, 3vw, 24px);
+            max-width: 480px;
+            width: 100%;
+            max-height: 85vh;
+            max-height: 85dvh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            border: 2px solid #81c784;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        .overlay-content h2 {
+            color: #2e7d32;
+            font-size: clamp(18px, 4vw, 24px);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .overlay-content p, .overlay-content li {
+            color: #33691e;
+            font-size: clamp(13px, 2.8vw, 15px);
+            line-height: 1.7;
+        }
+
+        .overlay-content ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .overlay-content ul li {
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            border-left: 3px solid #43a047;
+        }
+
+        .overlay-content ul li .badge {
+            display: inline-block;
+            background: rgba(46, 125, 50, 0.1);
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-size: 11px;
+            color: #2e7d32;
+            margin-left: 4px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #388e3c, #43a047);
+            color: #fff;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 22px;
+            font-size: clamp(15px, 3vw, 17px);
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(56, 142, 60, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(56, 142, 60, 0.5);
+        }
+
+        .btn-secondary {
+            background: rgba(46, 125, 50, 0.06);
+            color: #2e7d32;
+            border: 1px solid rgba(46, 125, 50, 0.2);
+            padding: 8px 16px;
+            border-radius: 18px;
+            font-size: clamp(13px, 2.8vw, 15px);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 6px;
+        }
+
+        .btn-secondary:active {
+            background: rgba(46, 125, 50, 0.12);
+        }
+
+        .rank-list {
+            margin: 10px 0;
+        }
+
+        .rank-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .rank-tab {
+            flex: 1;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(46, 125, 50, 0.2);
+            background: rgba(255, 255, 255, 0.4);
+            color: #33691e;
+            font-size: clamp(12px, 2.5vw, 14px);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .rank-tab.active {
+            background: linear-gradient(135deg, #388e3c, #43a047);
+            color: #fff;
+            border-color: #388e3c;
+        }
+
+        .rank-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            margin-bottom: 5px;
+            gap: 10px;
+        }
+
+        .rank-num {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .rank-1 { background: linear-gradient(135deg, #ffd700, #ffab00); color: #3e2723; }
+        .rank-2 { background: linear-gradient(135deg, #e0e0e0, #9e9e9e); color: #212121; }
+        .rank-3 { background: linear-gradient(135deg, #ff8a65, #bf360c); color: #fff; }
+        .rank-other { background: rgba(255,255,255,0.1); color: #689f38; font-size: 11px; }
+
+        .rank-name {
+            flex: 1;
+            color: #33691e;
+            font-weight: 500;
+            font-size: clamp(12px, 2.5vw, 14px);
+        }
+
+        .rank-time {
+            color: #2e7d32;
+            font-weight: 700;
+            font-size: clamp(12px, 2.5vw, 14px);
+        }
+
+        .rank-empty {
+            text-align: center;
+            color: #689f38;
+            padding: 20px 0;
+            font-size: 14px;
+        }
+
+        .complete-title {
+            font-size: clamp(26px, 5vw, 36px);
+            text-align: center;
+            margin-bottom: 4px;
+        }
+
+        .complete-subtitle {
+            color: #33691e;
+            text-align: center;
+            font-size: clamp(13px, 2.8vw, 15px);
+            margin-bottom: 10px;
+        }
+
+        .complete-time {
+            text-align: center;
+            font-size: clamp(26px, 5vw, 34px);
+            font-weight: 900;
+            color: #fff176;
+            margin: 8px 0;
+        }
+
+        .complete-label {
+            text-align: center;
+            color: #33691e;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        .action-bar {
+            display: flex;
+            justify-content: center;
+            gap: clamp(4px, 1vw, 10px);
+            margin-top: clamp(4px, 0.7vw, 8px);
+        }
+
+        .action-btn {
+            background: rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(46, 125, 50, 0.2);
+            color: #2e7d32;
+            padding: clamp(4px, 0.7vw, 8px) clamp(8px, 1.8vw, 16px);
+            border-radius: clamp(10px, 2vw, 16px);
+            cursor: pointer;
+            font-size: clamp(10px, 2.2vw, 14px);
+            font-weight: 600;
+            transition: transform 0.12s ease, background 0.12s ease;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            -webkit-tap-highlight-color: transparent;
+            white-space: nowrap;
+        }
+
+        .action-btn:active {
+            background: rgba(46, 125, 50, 0.08);
+            transform: scale(0.96);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .action-btn.shuffle-needed {
+            animation: pulse 1s ease-in-out infinite;
+            border-color: #f9a825;
+            color: #f57f17;
+            background: rgba(249, 168, 37, 0.1);
+        }
+
+        .combo-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+            font-size: clamp(32px, 7vw, 48px);
+            font-weight: 900;
+            color: #fff176;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            will-change: transform, opacity;
+        }
+
+        .combo-display.show {
+            opacity: 1;
+            transform: translate(-50%, -70%);
+        }
+
+        .overlay-content::-webkit-scrollbar {
+            width: 4px;
+        }
+        .overlay-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .overlay-content::-webkit-scrollbar-thumb {
+            background: #4a7a4a;
+            border-radius: 2px;
+        }
+
+        @media (max-width: 360px) {
+            .game-container { padding:clamp(3px,1vw,6px); border-radius:8px; }
+            .board { gap:1.5px; } .cell { border-radius:3px; }
+            .status-item { padding:2px 3px; font-size:8px; }
+            .header { margin-bottom:3px; }
+            .board-wrapper { padding:2px; border-width:1.5px; }
+            .action-btn { padding:3px 6px; font-size:9px; border-radius:8px; }
+            .tree-progress { padding:3px 5px; margin-bottom:3px; }
+            .progress-bar-wrap { height:6px; }
+            .status-bar { margin-bottom:3px; gap:2px; }
+            .lvl2-playarea { gap:3px; min-height:160px; }
+            .lvl2-tree-col { flex-basis:28%; }
+            .lvl2-center-col { flex-basis:22%; }
+            .lvl2-right-col { gap:4px; }
+            .bucket-item { padding:4px 5px; gap:4px; }
+            .tree-zone { min-height:120px; padding:4px 2px; }
+            .tree-zone .big-tree { font-size:clamp(36px,12vw,70px); }
+            .water-can-dropzone .wc-svg { width:clamp(36px,10vw,60px); height:clamp(36px,10vw,60px); }
+            .water-can-dropzone .wc-label { font-size:7px; }
+        }@media (max-width: 480px) and (min-width: 361px) {
+            .lvl2-playarea { gap: 6px; }
+            
+            .big-tree { margin-top: 36px; }
+        }
+
+        @media (min-width: 600px) {
+            .game-container { padding: 16px; }
+            .board { gap: 4px; }
+            .cell { border-radius: 7px; }
+            .action-btn { padding: 8px 18px; font-size: 14px; }
+        }
+
+        @media (min-width: 900px) {
+            .game-container { max-width: 560px; padding: 18px; }
+        }
+
+        .confetti-piece {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            animation: confetti 2s ease-out forwards;
+            pointer-events: none;
+            z-index: 200;
+        }
+
+        .legend-section {
+            margin-top: clamp(6px, 1.2vw, 12px);
+            width: 100%;
+            max-width: min(560px, 94vw);
+            display: flex;
+            justify-content: center;
+        }
+
+        .legend-box {
+            background: #fff;
+            border-radius: clamp(8px, 1.5vw, 12px);
+            padding: clamp(6px, 1.2vw, 12px) clamp(8px, 1.5vw, 16px) clamp(8px, 1.5vw, 14px);
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(46, 125, 50, 0.15);
+            width: 100%;
+        }
+
+        .legend-title {
+            font-size: clamp(11px, 2.2vw, 14px);
+            font-weight: 700;
+            color: #2e7d32;
+            margin-bottom: clamp(4px, 0.8vw, 8px);
+        }
+
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: clamp(3px, 0.7vw, 7px);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            border-radius: clamp(5px, 0.9vw, 8px);
+            padding: clamp(5px, 0.8vw, 10px) clamp(6px, 1vw, 12px);
+            border: 1px solid rgba(46, 125, 50, 0.15);
+            gap: clamp(4px, 0.8vw, 10px);
+            text-align: left;
+            will-change: transform;
+            transition: background 0.4s ease, border-color 0.4s ease, opacity 0.4s ease;
+        }
+
+        .legend-item.eliminated {
+            background: linear-gradient(135deg, #a5d6a7, #81c784);
+            border-color: #43a047;
+            opacity: 0.55;
+        }
+
+        .legend-item.eliminated .legend-rule {
+            text-decoration: line-through;
+        }
+
+        .legend-item .legend-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+            min-width: clamp(26px, 5vw, 40px);
+        }
+
+        .legend-item .legend-emoji {
+            font-size: clamp(15px, 2.8vw, 24px);
+            line-height: 1;
+        }
+
+        .legend-item .legend-label {
+            font-size: clamp(8px, 1.4vw, 11px);
+            color: #1b5e20;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-top: 1px;
+        }
+
+        .legend-item .legend-rule {
+            font-size: clamp(9px, 1.6vw, 13px);
+            color: #33691e;
+            line-height: 1.3;
+            flex: 1;
+        }
+
+        @media (max-width: 350px) {
+            .legend-grid { grid-template-columns: 1fr; }
+            .legend-item .legend-left { min-width: 24px; flex-direction: row; gap: 4px; }
+        }
+
+        @media (min-width: 600px) {
+            .legend-item { padding: 10px 14px; gap: 12px; }
+            .legend-item .legend-left { min-width: 44px; }
+        }
+
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 200;
+            text-align: center;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            max-width: 80vw;
+            opacity: 0;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container" id="app">
+        <div class="level-nav">
+            <button class="level-nav-btn active" id="navL1Btn" onclick="switchLevel(1)">1️⃣ 质量消消乐</button>
+            <button class="level-nav-btn" id="navL2Btn" onclick="switchLevel(2)" disabled>2️⃣ 浇水养成</button>
+        </div>
+
+        <!-- 第一关：消消乐 -->
+        <div id="level1View">
+        <div class="header">
+            <div class="game-title"><span class="icon">🌳</span> 质量树</div>
+            <div class="header-right">
+                <div class="timer-display" id="timer">00:00</div>
+                <button class="btn-icon" onclick="showRules()" title="游戏规则">📖</button>
+                <button class="btn-icon" onclick="showRanking()" title="排行榜">🏆</button>
+            </div>
+        </div>
+
+        <div class="tree-progress">
+            <span class="tree-icon" id="treeIcon">🌱</span>
+            <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <span class="progress-text" id="progressText">0/8</span>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">🎯 目标: <span id="targetCount">0</span></div>
+            <div class="status-item">💯 得分: <span id="scoreDisplay">0</span></div>
+            <div class="status-item">🔥 连击: <span id="comboCount">0</span></div>
+        </div>
+
+        <div class="board-wrapper">
+            <div class="board" id="board"></div>
+            <div class="combo-display" id="comboDisplay"></div>
+        </div>
+
+        <div class="action-bar">
+            <button class="action-btn" onclick="useHint()">💡 提示</button>
+            <button class="action-btn" id="shuffleBtn" onclick="shuffleBoard()">🔒 重排</button>
+            <button class="action-btn" onclick="restartGame()">🔄 重来</button>
+        </div>
+        </div>
+
+        <!-- 第二关：浇水养成 -->
+        <div id="level2View">
+            <div class="lvl2-header">
+                <div class="lvl2-title">💧 质量树 · 浇水养成</div>
+                <div class="timer-display" id="lvl2Timer">00:00</div>
+            </div>
+            <div class="lvl2-status">
+                <div class="s-item"><div class="s-val" id="lvl2LevelVal">0/8</div><div class="s-lbl">成长阶段</div></div>
+                <div class="s-item"><div class="s-val" id="lvl2ScoreVal">0</div><div class="s-lbl">得分</div></div>
+                <div class="s-item"><div class="s-val" id="lvl2WrongVal">0</div><div class="s-lbl">错误次数</div></div>
+            </div>
+            <div class="lvl2-playarea">
+                <div class="lvl2-tree-col">
+                    <div class="tree-zone" id="growthStage">
+                        <div class="tree-name-badge" id="treeNameBadge">🌱 待浇灌</div>
+                        <span class="big-tree" id="bigTree">🌱</span>
+                        <div class="growth-dots" id="growthDots"></div>
+                    </div>
+                </div>
+                <div class="lvl2-center-col">
+                    <div class="water-can-dropzone" id="waterCanDropzone">
+                        <span class="wc-svg"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 18c0-4 4-4 8-4h22c4 0 8 0 8 4v24c0 8-6 12-18 12-12 0-20-4-20-12z" fill="#1976d2" stroke="#0d47a1" stroke-width="2"/><path d="M12 22h38v8H12z" fill="#42a5f5"/><path d="M20 18H18v-6c0-4 6-6 14-6 8 0 14 2 14 6h-4c0-2-4-3-10-3-6 0-10 1-10 3z" fill="#64b5f6" stroke="#0d47a1" stroke-width="2"/><ellipse cx="50" cy="24" rx="7" ry="4" fill="#29b6f6" stroke="#0d47a1" stroke-width="2" transform="rotate(20 50 24)"/><path d="M50 20l4 2-4 2z" fill="#1976d2"/><path d="M16 26a3 3 0 0 1 3 3v14a3 3 0 1 1-6 0V29a3 3 0 0 1 3-3z" fill="#e3f2fd" opacity="0.9"/><path d="M30 26a3 3 0 0 1 3 3v14a3 3 0 1 1-6 0V29a3 3 0 0 1 3-3z" fill="#e3f2fd" opacity="0.6"/></svg></span>
+                        <span class="wc-label">拖水桶至此</span>
+                    </div>
+                </div>
+                <div class="lvl2-right-col" id="bucketTray"></div>
+            </div>
+            <div class="lvl2-hint" id="lvl2Hint">拖动右侧水桶到中央水壶浇水</div>
+        </div>
+    </div> <!-- end game-container --><div class="overlay" id="rulesOverlay">
+        <div class="overlay-content">
+            <h2>📋 质量树 · 游戏规则</h2>
+            <p style="margin-bottom:10px;color:#558b2f;font-size:14px;">两关闯关，守护质量树成长！</p>
+            <ul>
+                <li>🌳 <strong>第一关</strong>：消除8种"质量红线"卡片，让质量树从🌱成长为🌳</li>
+                <li>🔗 <strong>消除规则</strong>：选中卡片 → 点击相邻卡片交换，<strong>3个及以上</strong>相同卡片连线即可消除</li>
+                <li>📊 <strong>计分</strong>：消除3个=30分，4个=60分，5个=100分；连击有额外加成</li>
+                <li>💧 <strong>第二关</strong>：通关第一关后解锁，拖动正确水壶浇水，让小树历经8阶段长成参天大树</li>
+                <li>❌ <strong>错误拖动</strong>：拖错水壶 → 小树降1级且扣除20分</li>
+                <li>⏱️ <strong>排名</strong>：通关时间越短，排名越靠前</li>
+            </ul>
+            <br>
+            <h2 style="font-size:clamp(15px,3vw,18px);">🚫 质量红线通则</h2>
+            <ul>
+                <li>🚨 <strong>禁止瞒报</strong> <span class="badge">瞒报</span><br><span style="font-size:12px;color:#689f38;">发现问题必须上报，禁止内部消化</span></li>
+                <li>🛑 <strong>禁止弄虚作假</strong> <span class="badge">造假</span><br><span style="font-size:12px;color:#689f38;">禁止篡改数据、虚假确认、私自放行</span></li>
+                <li>🔒 <strong>禁止私自变更</strong> <span class="badge">私变</span><br><span style="font-size:12px;color:#689f38;">禁止未走流程私自更改设计/工艺/参数</span></li>
+                <li>👤 <strong>禁止盗用权限</strong> <span class="badge">盗权</span><br><span style="font-size:12px;color:#689f38;">禁止盗用或滥用他人权限</span></li>
+                <li>📋 <strong>禁止违规操作</strong> <span class="badge">违规</span><br><span style="font-size:12px;color:#689f38;">禁止违反流程规程、消极怠工</span></li>
+                <li>📝 <strong>禁止数据造假</strong> <span class="badge">数据</span><br><span style="font-size:12px;color:#689f38;">禁止篡改杜撰首件/过程/FTY等数据</span></li>
+                <li>⚙️ <strong>禁止私改参数</strong> <span class="badge">参数</span><br><span style="font-size:12px;color:#689f38;">禁止私改设备参数、屏蔽防呆功能</span></li>
+                <li>🔍 <strong>禁止虚假确认</strong> <span class="badge">确认</span><br><span style="font-size:12px;color:#689f38;">禁止未按三现原则进行落地检查</span></li>
+            </ul>
+            <br>
+            <button class="btn-primary" onclick="closeRules()">👍 知道了，开始游戏！</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="rankOverlay">
+        <div class="overlay-content">
+            <div class="rank-tabs">
+                <button class="rank-tab active" data-tab="global" onclick="switchRankTab('global')">🌳 质量树排行</button>
+                <button class="rank-tab" data-tab="personal" onclick="switchRankTab('personal')">👤 个人排行</button>
+            </div>
+            <div class="rank-list" id="rankList">
+                <div class="rank-empty">暂无记录，快来挑战吧！</div>
+            </div>
+            <button class="btn-secondary" onclick="clearRanking()" style="margin-top:2px;">🗑️ 清空个人记录</button>
+            <button class="btn-primary" onclick="closeRanking()" style="margin-top:6px;">关闭</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="completeOverlay">
+        <div class="overlay-content" style="text-align:center;">
+            <div class="complete-title">🎉 🌳</div>
+            <div class="complete-title" style="font-size:clamp(22px,4.5vw,28px);color:#2e7d32;">质量树已长成！</div>
+            <div class="complete-subtitle">所有质量红线问题已消除</div>
+            <div class="complete-label">⏱️ 通关时间</div>
+            <div class="complete-time" id="finalTime">00:00</div>
+            <div style="color:#33691e;font-size:13px;margin-bottom:12px;" id="finalScore">得分: 0</div>
+            <button class="btn-primary" onclick="enterLevel2()">🌱 进入第二关</button>
+            <button class="btn-secondary" onclick="restartFromComplete()" style="margin-top:6px;">🔄 再来一次</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="lvl2CompleteOverlay">
+        <div class="overlay-content" style="text-align:center;">
+            <div class="complete-title">🌳✨</div>
+            <div class="complete-title" style="font-size:clamp(22px,4.5vw,28px);color:#2e7d32;">参天大树养成成功！</div>
+            <div class="complete-subtitle">全部8项质量红线内容均已正确浇灌</div>
+            <div class="complete-label">⏱️ 第二关通关时间</div>
+            <div class="complete-time" id="finalTime2">00:00</div>
+            <div style="color:#33691e;font-size:13px;margin-bottom:12px;" id="finalScore2">得分: 0 | 错误: 0次</div>
+            <button class="btn-primary" onclick="closeLvl2Complete()">👍 太棒了！</button>
+            <button class="btn-secondary" onclick="restartLvl2()" style="margin-top:6px;">🔄 再来一次</button>
+        </div>
+    </div>
+
+    <div class="legend-section">
+        <div class="legend-box">
+            <div class="legend-title">🚫 质量红线 · 图例</div>
+            <div class="legend-grid" id="legendGrid"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ==================== Configuration ====================
+        var BOARD_SIZE = 8;
+        var TARGET_TOTAL = 8;
+
+        var TILE_TYPES = [
+            { id: 'cover',     emoji: '🚨', label: '瞒报', rule: '禁止瞒报质量问题' },
+            { id: 'fraud',     emoji: '🛑', label: '造假', rule: '禁止弄虚作假' },
+            { id: 'change',    emoji: '🔒', label: '私变', rule: '禁止私自变更' },
+            { id: 'abuse',     emoji: '👤', label: '盗权', rule: '禁止盗用滥用权限' },
+            { id: 'violation', emoji: '📋', label: '违规', rule: '禁止违反流程规程' },
+            { id: 'data',      emoji: '📝', label: '数据', rule: '禁止篡改杜撰数据' },
+            { id: 'param',     emoji: '⚙️', label: '参数', rule: '禁止私改屏蔽参数' },
+            { id: 'confirm',   emoji: '🔍', label: '确认', rule: '禁止虚假落地确认' }
+        ];
+
+        // ==================== DOM ====================
+        var boardEl = document.getElementById('board');
+        var timerEl = document.getElementById('timer');
+        var progressFill = document.getElementById('progressFill');
+        var progressText = document.getElementById('progressText');
+        var treeIcon = document.getElementById('treeIcon');
+        var targetCount = document.getElementById('targetCount');
+        var scoreDisplay = document.getElementById('scoreDisplay');
+        var comboCount = document.getElementById('comboCount');
+        var comboDisplay = document.getElementById('comboDisplay');
+        var rulesOverlay = document.getElementById('rulesOverlay');
+        var rankOverlay = document.getElementById('rankOverlay');
+        var completeOverlay = document.getElementById('completeOverlay');
+        var rankList = document.getElementById('rankList');
+        var finalTime = document.getElementById('finalTime');
+        var finalScore = document.getElementById('finalScore');
+        var shuffleBtn = document.getElementById('shuffleBtn');
+        var toastEl = document.getElementById('toast');
+
+        // ==================== State ====================
+        var board = [];
+        var selectedCell = null;
+        var isProcessing = false;
+        var score = 0;
+        var combo = 0;
+        var moveCount = 0;
+        var eliminatedTypes = new Set();
+        var gameStarted = false;
+        var gameOver = false;
+        var timerInterval = null;
+        var seconds = 0;
+        var isStuck = false;
+
+        // ==================== Init ====================
+        function initGame() {
+            board = [];
+            selectedCell = null;
+            isProcessing = false;
+            score = 0;
+            combo = 0;
+            moveCount = 0;
+            eliminatedTypes = new Set();
+            gameStarted = false;
+            gameOver = false;
+            seconds = 0;
+            isStuck = false;
+            timerEl.textContent = '00:00';
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            generateBoard();
+            while (findMatches().length > 0) {
+                generateBoard();
+            }
+            renderBoard();
+            updateUI();
+            rulesOverlay.classList.add('active');
+            if (window.location.search.indexOf('play=1') !== -1) {
+                setTimeout(closeRules, 80);
+            }
+            updateShuffleButton();
+            updateLegend();
+        }
+
+        function generateBoard() {
+            board = [];
+            for (var r = 0; r < BOARD_SIZE; r++) {
+                var row = [];
+                for (var c = 0; c < BOARD_SIZE; c++) {
+                    row.push(Math.floor(Math.random() * TILE_TYPES.length));
+                }
+                board.push(row);
+            }
+        }
+
+        // ==================== Render ====================
+        function renderBoard() {
+            boardEl.style.gridTemplateColumns = 'repeat(' + BOARD_SIZE + ', 1fr)';
+            boardEl.innerHTML = '';
+            var fragment = document.createDocumentFragment();
+            for (var r = 0; r < BOARD_SIZE; r++) {
+                for (var c = 0; c < BOARD_SIZE; c++) {
+                    var cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    var typeIdx = board[r][c];
+                    if (typeIdx !== -1) {
+                        var tile = TILE_TYPES[typeIdx];
+                        cell.innerHTML = '<div class="tile-content"><span class="tile-emoji">' + tile.emoji + '</span><span class="tile-label">' + tile.label + '</span></div>';
+                    }
+                    cell.addEventListener('click', makeClickHandler(r, c), { passive: true });
+                    fragment.appendChild(cell);
+                }
+            }
+            boardEl.appendChild(fragment);
+            updateSelection();
+        }
+
+        function makeClickHandler(r, c) {
+            return function() { onCellClick(r, c); };
+        }
+
+        function getCellEl(r, c) {
+            return boardEl.querySelector('.cell[data-row="' + r + '"][data-col="' + c + '"]');
+        }
+
+        function updateSelection() {
+            var sel = boardEl.querySelectorAll('.cell.selected');
+            for (var i = 0; i < sel.length; i++) sel[i].classList.remove('selected');
+            if (selectedCell) {
+                var el = getCellEl(selectedCell.row, selectedCell.col);
+                if (el) el.classList.add('selected');
+            }
+        }
+
+        function updateUI() {
+            var eliminated = eliminatedTypes.size;
+            var pct = (eliminated / TARGET_TOTAL) * 100;
+            progressFill.style.width = Math.min(pct, 100) + '%';
+            progressText.textContent = eliminated + '/' + TARGET_TOTAL;
+            targetCount.textContent = TARGET_TOTAL - eliminated;
+            scoreDisplay.textContent = score;
+            comboCount.textContent = combo;
+
+            if (eliminated === 0) treeIcon.textContent = '\u{1F331}';
+            else if (eliminated <= 2) treeIcon.textContent = '\u{1F33F}';
+            else if (eliminated <= 4) treeIcon.textContent = '\u{1F332}';
+            else if (eliminated <= 6) treeIcon.textContent = '\u{1F333}';
+            else if (eliminated >= 8) treeIcon.textContent = '\u{1F31F}\u{1F333}';
+
+            if (typeof checkStuck === 'function') checkStuck();
+        }
+
+        // ==================== Match Logic ====================
+        function findMatches() {
+            var matched = {};
+            for (var r = 0; r < BOARD_SIZE; r++) {
+                var count = 1;
+                for (var c = 1; c < BOARD_SIZE; c++) {
+                    if (board[r][c] !== -1 && board[r][c] === board[r][c-1]) {
+                        count++;
+                    } else {
+                        if (count >= 3) {
+                            for (var k = c - count; k < c; k++) matched[r + ',' + k] = true;
+                        }
+                        count = 1;
+                    }
+                }
+                if (count >= 3) {
+                    for (var k = BOARD_SIZE - count; k < BOARD_SIZE; k++) matched[r + ',' + k] = true;
+                }
+            }
+            for (var c = 0; c < BOARD_SIZE; c++) {
+                var count = 1;
+                for (var r = 1; r < BOARD_SIZE; r++) {
+                    if (board[r][c] !== -1 && board[r][c] === board[r-1][c]) {
+                        count++;
+                    } else {
+                        if (count >= 3) {
+                            for (var k = r - count; k < r; k++) matched[k + ',' + c] = true;
+                        }
+                        count = 1;
+                    }
+                }
+                if (count >= 3) {
+                    for (var k = BOARD_SIZE - count; k < BOARD_SIZE; k++) matched[k + ',' + c] = true;
+                }
+            }
+            var result = [];
+            for (var key in matched) {
+                var parts = key.split(',');
+                result.push({ row: parseInt(parts[0]), col: parseInt(parts[1]) });
+            }
+            return result;
+        }
+
+        function getMatchGroups() {
+            var groups = [];
+            for (var r = 0; r < BOARD_SIZE; r++) {
+                var count = 1;
+                for (var c = 1; c < BOARD_SIZE; c++) {
+                    if (board[r][c] !== -1 && board[r][c] === board[r][c-1]) {
+                        count++;
+                    } else {
+                        if (count >= 3) {
+                            var cells = [];
+                            for (var k = c - count; k < c; k++) cells.push({ row: r, col: k });
+                            groups.push({ cells: cells, type: board[r][c-1], count: count });
+                        }
+                        count = 1;
+                    }
+                }
+                if (count >= 3) {
+                    var cells = [];
+                    for (var k = BOARD_SIZE - count; k < BOARD_SIZE; k++) cells.push({ row: r, col: k });
+                    groups.push({ cells: cells, type: board[r][BOARD_SIZE-1], count: count });
+                }
+            }
+            for (var c = 0; c < BOARD_SIZE; c++) {
+                var count = 1;
+                for (var r = 1; r < BOARD_SIZE; r++) {
+                    if (board[r][c] !== -1 && board[r][c] === board[r-1][c]) {
+                        count++;
+                    } else {
+                        if (count >= 3) {
+                            var cells = [];
+                            for (var k = r - count; k < r; k++) cells.push({ row: k, col: c });
+                            groups.push({ cells: cells, type: board[r-1][c], count: count });
+                        }
+                        count = 1;
+                    }
+                }
+                if (count >= 3) {
+                    var cells = [];
+                    for (var k = BOARD_SIZE - count; k < BOARD_SIZE; k++) cells.push({ row: k, col: c });
+                    groups.push({ cells: cells, type: board[BOARD_SIZE-1][c], count: count });
+                }
+            }
+            return groups;
+        }
+
+        function isAdjacent(r1, c1, r2, c2) {
+            return Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1;
+        }
+
+        function swapCells(r1, c1, r2, c2) {
+            var temp = board[r1][c1];
+            board[r1][c1] = board[r2][c2];
+            board[r2][c2] = temp;
+        }
+
+        function hasValidMoves() {
+            for (var r = 0; r < BOARD_SIZE; r++) {
+                for (var c = 0; c < BOARD_SIZE; c++) {
+                    if (c + 1 < BOARD_SIZE) {
+                        swapCells(r, c, r, c+1);
+                        var has = findMatches().length > 0;
+                        swapCells(r, c, r, c+1);
+                        if (has) return true;
+                    }
+                    if (r + 1 < BOARD_SIZE) {
+                        swapCells(r, c, r+1, c);
+                        var has = findMatches().length > 0;
+                        swapCells(r, c, r+1, c);
+                        if (has) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function findHintMove() {
+            for (var r = 0; r < BOARD_SIZE; r++) {
+                for (var c = 0; c < BOARD_SIZE; c++) {
+                    if (c + 1 < BOARD_SIZE && board[r][c] !== -1 && board[r][c+1] !== -1) {
+                        swapCells(r, c, r, c+1);
+                        var has = findMatches().length > 0;
+                        swapCells(r, c, r, c+1);
+                        if (has) return [{ row: r, col: c }, { row: r, col: c+1 }];
+                    }
+                    if (r + 1 < BOARD_SIZE && board[r][c] !== -1 && board[r+1][c] !== -1) {
+                        swapCells(r, c, r+1, c);
+                        var has = findMatches().length > 0;
+                        swapCells(r, c, r+1, c);
+                        if (has) return [{ row: r, col: c }, { row: r+1, col: c }];
+                    }
+                }
+            }
+            return null;
+        }
+
+        // ==================== Stuck / Shuffle ====================
+        function checkStuck() {
+            var wasStuck = isStuck;
+            isStuck = !hasValidMoves();
+            if (isStuck !== wasStuck) {
+                updateShuffleButton();
+            }
+        }
+
+        function updateShuffleButton() {
+            if (!shuffleBtn) return;
+            if (isStuck) {
+                shuffleBtn.disabled = false;
+                shuffleBtn.textContent = '🔀 重排';
+                shuffleBtn.classList.add('shuffle-needed');
+            } else {
+                shuffleBtn.disabled = true;
+                shuffleBtn.textContent = '🔒 重排';
+                shuffleBtn.classList.remove('shuffle-needed');
+            }
+        }
+
+        function showToast(msg) {
+            toastEl.textContent = msg;
+            toastEl.classList.add('show');
+            clearTimeout(toastEl._hide);
+            toastEl._hide = setTimeout(function() {
+                toastEl.classList.remove('show');
+            }, 1600);
+        }
+
+        // ==================== Process Matches ====================
+        async function processMatches() {
+            while (true) {
+                var matches = findMatches();
+                if (matches.length === 0) break;
+
+                if (!gameStarted) {
+                    gameStarted = true;
+                    startTimer();
+                }
+
+                var groups = getMatchGroups();
+                var addScore = 0;
+                var newTypes = new Set();
+
+                for (var gi = 0; gi < groups.length; gi++) {
+                    var g = groups[gi];
+                    if (g.count === 3) addScore += 30;
+                    else if (g.count === 4) addScore += 60;
+                    else addScore += 100;
+                    newTypes.add(g.type);
+                }
+
+                combo++;
+                if (combo > 1) {
+                    addScore += Math.floor(addScore * (combo * 0.1));
+                    showCombo(combo);
+                }
+
+                score += addScore;
+                moveCount++;
+
+                newTypes.forEach(function(t) { eliminatedTypes.add(t); });
+                updateLegend();
+
+                for (var mi = 0; mi < matches.length; mi++) {
+                    var el = getCellEl(matches[mi].row, matches[mi].col);
+                    if (el) el.classList.add('matched');
+                }
+
+                await sleep(200);
+
+                for (var mi = 0; mi < matches.length; mi++) {
+                    board[matches[mi].row][matches[mi].col] = -1;
+                }
+
+                await dropTiles();
+                renderBoard();
+                updateUI();
+
+                if (eliminatedTypes.size >= TARGET_TOTAL) {
+                    endGame(true);
+                    return;
+                }
+            }
+
+            if (!hasValidMoves()) {
+                shuffleBoard();
+            }
+            combo = 0;
+            updateUI();
+        }
+
+        async function dropTiles() {
+            var moved = false;
+            for (var c = 0; c < BOARD_SIZE; c++) {
+                var writeRow = BOARD_SIZE - 1;
+                for (var r = BOARD_SIZE - 1; r >= 0; r--) {
+                    if (board[r][c] !== -1) {
+                        if (r !== writeRow) {
+                            board[writeRow][c] = board[r][c];
+                            board[r][c] = -1;
+                            moved = true;
+                        }
+                        writeRow--;
+                    }
+                }
+                for (var r = writeRow; r >= 0; r--) {
+                    board[r][c] = Math.floor(Math.random() * TILE_TYPES.length);
+                    moved = true;
+                }
+            }
+            if (moved) {
+                renderBoard();
+                await sleep(200);
+            }
+        }
+
+        // ==================== Player Actions ====================
+        function onCellClick(row, col) {
+            if (isProcessing || gameOver) return;
+            if (board[row][col] === -1) return;
+
+            clearHint();
+
+            if (selectedCell === null) {
+                selectedCell = { row: row, col: col };
+                updateSelection();
+                return;
+            }
+
+            if (selectedCell.row === row && selectedCell.col === col) {
+                selectedCell = null;
+                updateSelection();
+                return;
+            }
+
+            if (isAdjacent(selectedCell.row, selectedCell.col, row, col)) {
+                trySwap(selectedCell.row, selectedCell.col, row, col);
+            } else {
+                selectedCell = { row: row, col: col };
+                updateSelection();
+            }
+        }
+
+        async function trySwap(r1, c1, r2, c2) {
+            isProcessing = true;
+            selectedCell = null;
+            updateSelection();
+
+            swapCells(r1, c1, r2, c2);
+            renderBoard();
+
+            var matches = findMatches();
+            if (matches.length === 0) {
+                await sleep(180);
+                swapCells(r1, c1, r2, c2);
+                renderBoard();
+                var el1 = getCellEl(r1, c1);
+                var el2 = getCellEl(r2, c2);
+                if (el1) el1.style.animation = 'shake 0.3s';
+                if (el2) el2.style.animation = 'shake 0.3s';
+                await sleep(300);
+                if (el1) el1.style.animation = '';
+                if (el2) el2.style.animation = '';
+            } else {
+                await processMatches();
+            }
+
+            isProcessing = false;
+        }
+
+        function useHint() {
+            if (isProcessing || gameOver) return;
+            clearHint();
+            var move = findHintMove();
+            if (move) {
+                for (var i = 0; i < move.length; i++) {
+                    var el = getCellEl(move[i].row, move[i].col);
+                    if (el) el.classList.add('hint');
+                }
+                setTimeout(clearHint, 2000);
+            }
+        }
+
+        function clearHint() {
+            var hints = boardEl.querySelectorAll('.cell.hint');
+            for (var i = 0; i < hints.length; i++) hints[i].classList.remove('hint');
+        }
+
+        function shuffleBoard() {
+            if (isProcessing || gameOver) return;
+            if (!isStuck) {
+                showToast('当前仍有可消除的卡片，无需重排');
+                return;
+            }
+            isProcessing = true;
+            var values = [];
+            for (var r = 0; r < BOARD_SIZE; r++) {
+                for (var c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] !== -1) values.push(board[r][c]);
+                }
+            }
+            for (var i = values.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var tmp = values[i]; values[i] = values[j]; values[j] = tmp;
+            }
+            var idx = 0;
+            for (var r = 0; r < BOARD_SIZE; r++) {
+                for (var c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] !== -1) {
+                        board[r][c] = values[idx++];
+                    }
+                }
+            }
+            renderBoard();
+            isProcessing = false;
+            if (!hasValidMoves() || findMatches().length > 0) {
+                if (findMatches().length > 0) {
+                    processMatches();
+                }
+            }
+            checkStuck();
+        }
+
+        // ==================== Timer ====================
+        function startTimer() {
+            if (timerInterval) return;
+            timerInterval = setInterval(function() {
+                seconds++;
+                timerEl.textContent = formatTime(seconds);
+            }, 1000);
+        }
+
+        function formatTime(s) {
+            var m = String(Math.floor(s / 60)).padStart(2, '0');
+            var sec = String(s % 60).padStart(2, '0');
+            return m + ':' + sec;
+        }
+
+        // ==================== Effects ====================
+        function showCombo(c) {
+            comboDisplay.textContent = '🔥 ' + c + '连击！';
+            comboDisplay.classList.add('show');
+            setTimeout(function() { comboDisplay.classList.remove('show'); }, 800);
+        }
+
+        function endGame(win) {
+            gameOver = true;
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            if (win) {
+                finalTime.textContent = formatTime(seconds);
+                finalScore.textContent = '得分: ' + score + ' | 步数: ' + moveCount + ' | 最高连击: ' + combo;
+                rankScoreEntry = { time: seconds, score: score, date: '', level: 1 };
+                saveRanking(seconds, score, 1);
+                // 通关第一关，解锁第二关
+                lvl2Unlocked = true;
+                unlockLvl2Nav();
+                requestAnimationFrame(function() {
+                    completeOverlay.classList.add('active');
+                    spawnConfetti();
+                });
+            }
+        }
+
+        function unlockLvl2Nav() {
+            var b2 = document.getElementById('navL2Btn');
+            if (b2) b2.disabled = false;
+        }
+
+        function spawnConfetti() {
+            var colors = ['#ffd700', '#81c784', '#ff8a65', '#64b5f6', '#fff176', '#ce93d8', '#f48fb1'];
+            var fragment = document.createDocumentFragment();
+            for (var i = 0; i < 30; i++) {
+                var el = document.createElement('div');
+                el.className = 'confetti-piece';
+                el.style.left = Math.random() * 100 + '%';
+                el.style.background = colors[Math.floor(Math.random() * colors.length)];
+                el.style.animationDuration = (Math.random() * 1.5 + 1.2) + 's';
+                el.style.animationDelay = (Math.random() * 1.5) + 's';
+                fragment.appendChild(el);
+            }
+            document.body.appendChild(fragment);
+            setTimeout(function() {
+                var all = document.querySelectorAll('.confetti-piece');
+                for (var i = 0; i < all.length; i++) all[i].remove();
+            }, 3500);
+        }
+
+        // ==================== Rankings ====================
+        var currentRankTab = 'global';
+        var rankScoreEntry = null;
+
+        function getPersonalRankings() {
+            try {
+                return JSON.parse(localStorage.getItem('personalRankings') || '[]');
+            } catch (e) { return []; }
+        }
+
+        function getGlobalRankings() {
+            try {
+                return JSON.parse(localStorage.getItem('globalRankings') || '[]');
+            } catch (e) { return []; }
+        }
+
+        function saveRanking(time, score, level) {
+            var now = new Date();
+            var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+            var lv = level || (rankScoreEntry ? rankScoreEntry.level || 1 : 1);
+            if (rankScoreEntry) {
+                rankScoreEntry.date = dateStr;
+                rankScoreEntry = null;
+            }
+            var entry = {
+                time: time,
+                score: score,
+                date: dateStr,
+                level: lv
+            };
+            var personal = getPersonalRankings();
+            personal.push(entry);
+            localStorage.setItem('personalRankings', JSON.stringify(personal));
+            var global = getGlobalRankings();
+            global.push(entry);
+            global.sort(function(a, b) { return a.time - b.time; });
+            if (global.length > 100) global.length = 100;
+            localStorage.setItem('globalRankings', JSON.stringify(global));
+        }
+
+        function renderRankings() {
+            var data = currentRankTab === 'global' ? getGlobalRankings() : getPersonalRankings();
+            if (data.length === 0) {
+                rankList.innerHTML = '<div class="rank-empty">暂无记录，快来挑战吧！</div>';
+                return;
+            }
+            data.sort(function(a, b) { return a.time - b.time; });
+            rankList.innerHTML = '';
+            var maxShow = currentRankTab === 'global' ? 100 : data.length;
+            for (var i = 0; i < data.length && i < maxShow; i++) {
+                var entry = data[i];
+                var item = document.createElement('div');
+                item.className = 'rank-item';
+                var numClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
+                var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '' + (i+1);
+                var timeStr = formatTime(entry.time);
+                var dateStr = entry.date || '未知';
+                var lvlTag = entry.level === 2 ? '<span class="rank-level" style="background:#e1bee7;color:#6a1b9a;border-radius:8px;padding:1px 6px;font-size:10px;font-weight:700;">2</span>' : '<span class="rank-level" style="background:#c8e6c9;color:#2e7d32;border-radius:8px;padding:1px 6px;font-size:10px;font-weight:700;">1</span>';
+                item.innerHTML = '<div class="rank-num ' + numClass + '">' + medal + '</div><div class="rank-name">' + dateStr + '</div><div class="rank-time">' + lvlTag + ' ' + timeStr + '</div>';
+                rankList.appendChild(item);
+            }
+            if (currentRankTab === 'personal') {
+                var count = document.createElement('div');
+                count.style.cssText = 'text-align:center;color:#689f38;font-size:12px;margin-top:8px;';
+                count.textContent = '共 ' + data.length + ' 次记录';
+                rankList.appendChild(count);
+            }
+        }
+
+        function switchRankTab(tab) {
+            currentRankTab = tab;
+            var tabs = document.querySelectorAll('.rank-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.toggle('active', tabs[i].dataset.tab === tab);
+            }
+            renderRankings();
+        }
+
+        function clearRanking() {
+            if (confirm('确定要清空个人排行榜的所有历史记录吗？此操作不可恢复。')) {
+                localStorage.removeItem('personalRankings');
+                renderRankings();
+            }
+        }
+
+        // ==================== Overlay Controls ====================
+        function showRules() { rulesOverlay.classList.add('active'); }
+        function closeRules() { rulesOverlay.classList.remove('active'); }
+        function showRanking() { renderRankings(); rankOverlay.classList.add('active'); }
+        function closeRanking() { rankOverlay.classList.remove('active'); }
+        function closeComplete() { completeOverlay.classList.remove('active'); }
+        function restartFromComplete() {
+            completeOverlay.classList.remove('active');
+            restartGame();
+        }
+        function restartGame() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            initGame();
+        }
+
+        function sleep(ms) { return new Promise(function(resolve) { setTimeout(resolve, ms); }); }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'r' || e.key === 'R') restartGame();
+            if (e.key === 'h' || e.key === 'H') useHint();
+            if (e.key === 's' || e.key === 'S') shuffleBoard();
+        });
+
+        // ==================== 生成图例（替换原二维码） ====================
+        function renderLegend() {
+            var grid = document.getElementById('legendGrid');
+            if (!grid) return;
+            var html = '';
+            for (var i = 0; i < TILE_TYPES.length; i++) {
+                var t = TILE_TYPES[i];
+                html += '<div class="legend-item" data-id="' + t.id + '"><div class="legend-left"><span class="legend-emoji">' + t.emoji + '</span><span class="legend-label">' + t.label + '</span></div><span class="legend-rule">' + t.rule + '</span></div>';
+            }
+            grid.innerHTML = html;
+        }
+
+        function updateLegend() {
+            var items = document.querySelectorAll('.legend-item');
+            for (var i = 0; i < items.length; i++) {
+                var id = items[i].dataset.id;
+                var isEliminated = eliminatedTypes.has(i);
+                if (isEliminated) {
+                    items[i].classList.add('eliminated');
+                } else {
+                    items[i].classList.remove('eliminated');
+                }
+            }
+        }
+
+        // ==================== 第二关：浇水养成 ====================
+        var currentLevel = 1;
+        var lvl1Unlocked = true; // 第一关默认已解锁
+        var lvl2Unlocked = false; // 第二关需通关第一关后解锁
+
+        // 8条质量红线（第二关配置：水壶关键词 + 简要重点内容）
+        var REDLINE_STAGES = [
+            { key: 'sop',       label: '依标作业', rule: '按SOP/JSA/CP标准检查操作', emoji: '\u{1F4CB}' },
+            { key: 'cert',      label: '持证上岗', rule: '禁止无证上岗作业', emoji: '\u{1F3DB}' },
+            { key: 'review',    label: '认真把关', rule: '禁止敷衍评审把关', emoji: '\u{2705}' },
+            { key: 'freq',      label: '合规频次', rule: '按文件频次方法检查', emoji: '\u{23F2}' },
+            { key: 'service',   label: '客户服务', rule: '文明服务及时响应', emoji: '\u{1F91D}' },
+            { key: 'followup',  label: '一追到底', rule: '问题落实围堵确认', emoji: '\u{1F50D}' },
+            { key: 'tool',      label: '工装确认', rule: '禁用不明状态工装检具', emoji: '\u{1F6E0}' },
+            { key: '5m1e',      label: '变更登记', rule: '调参须登记5M1E', emoji: '\u{1F4DD}' }
+        ];
+
+        // 蓝色水壶 SVG 图标
+        var WATER_CAN_SVG = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+            + '<path d="M12 18c0-4 4-4 8-4h22c4 0 8 0 8 4v24c0 8-6 12-18 12-12 0-20-4-20-12z" fill="#1976d2" stroke="#0d47a1" stroke-width="2"/>'
+            + '<path d="M12 22h38v8H12z" fill="#42a5f5"/>'
+            + '<path d="M20 18H18v-6c0-4 6-6 14-6 8 0 14 2 14 6h-4c0-2-4-3-10-3-6 0-10 1-10 3z" fill="#64b5f6" stroke="#0d47a1" stroke-width="2"/>'
+            + '<ellipse cx="50" cy="24" rx="7" ry="4" fill="#29b6f6" stroke="#0d47a1" stroke-width="2" transform="rotate(20 50 24)"/>'
+            + '<path d="M50 20l4 2-4 2z" fill="#1976d2"/>'
+            + '<path d="M16 26a3 3 0 0 1 3 3v14a3 3 0 1 1-6 0V29a3 3 0 0 1 3-3z" fill="#e3f2fd" opacity="0.9"/>'
+            + '<path d="M30 26a3 3 0 0 1 3 3v14a3 3 0 1 1-6 0V29a3 3 0 0 1 3-3z" fill="#e3f2fd" opacity="0.6"/>'
+            + '</svg>';
+
+        // 蓝色小水桶 SVG
+        var BUCKET_SVG = '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M10 14c0-3 3-3 6-3h16c3 0 6 0 6 3v18c0 6-4 9-14 9-9 0-14-3-14-9z" fill="#1976d2" stroke="#0d47a1" stroke-width="1.5"/><path d="M10 17h28v6H10z" fill="#42a5f5"/><path d="M16 14h-2v-4c0-3 4-4 10-4s10 1 10 4h-3c0-1-3-2-7-2-4 0-7 1-7 2z" fill="#64b5f6" stroke="#0d47a1" stroke-width="1.5"/><path d="M28 12l-2 4h4z" fill="#1976d2"/><path d="M12 20a2 2 0 0 1 2 2v10a2 2 0 1 1-4 0V22a2 2 0 0 1 2-2z" fill="#e3f2fd" opacity=".8"/></svg>';
+
+        // 树成长8阶段
+        var TREE_STAGES = ['\u{1F331}', '\u{1F33F}', '\u{1F33F}', '\u{1F332}', '\u{1F332}', '\u{1F333}', '\u{1F333}', '\u{1F333}', '\u{1F333}'];
+        var TREE_NAMES = ['种子萌发', '小苗出土', '嫩叶初长', '成苗渐壮', '树冠初现', '枝繁叶茂', '郁郁葱葱', '参天大树', '功成圆满'];
+
+        // 第二关状态
+        var lvl2 = {
+            stage: 0,
+            score: 0,
+            wrong: 0,
+            timer: null,
+            seconds: 0,
+            started: false
+        };
+
+        var dragIdx = null;
+        var dragGhost = null;
+
+        // ==================== 关卡切换 ====================
+        function switchLevel(lv) {
+            if (lv === 2 && !lvl2Unlocked) {
+                showToast('请先通关第一关，再进入第二关');
+                return;
+            }
+            currentLevel = lv;
+            var v1 = document.getElementById('level1View');
+            var v2 = document.getElementById('level2View');
+            var b1 = document.getElementById('navL1Btn');
+            var b2 = document.getElementById('navL2Btn');
+            var legend = document.querySelector('.legend-section');
+            if (lv === 1) {
+                v1.style.display = 'block';
+                v2.classList.remove('active');
+                b1.classList.add('active');
+                b2.classList.remove('active');
+                if (legend) legend.style.display = 'flex';
+            } else {
+                v1.style.display = 'none';
+                v2.classList.add('active');
+                b1.classList.remove('active');
+                b2.classList.add('active');
+                // 第二关不显示第一关的质量红线图例
+                if (legend) legend.style.display = 'none';
+                if (!lvl2.started) {
+                    startLvl2();
+                }
+            }
+        }
+
+        function enterLevel2() {
+            completeOverlay.classList.remove('active');
+            startLvl2();
+            switchLevel(2);
+        }
+
+        function unlockLvl2() {
+            lvl2Unlocked = true;
+            var b2 = document.getElementById('navL2Btn');
+            if (b2) b2.disabled = false;
+        }
+
+        // ==================== 第二关启动 ====================
+        function startLvl2() {
+            lvl2.stage = 0;
+            lvl2.score = 0;
+            lvl2.wrong = 0;
+            lvl2.started = true;
+            lvl2.seconds = 0;
+            if (lvl2.timer) { clearInterval(lvl2.timer); lvl2.timer = null; }
+            var tEl = document.getElementById('lvl2Timer');
+            if (tEl) tEl.textContent = '00:00';
+            renderGrowth();
+            renderCanteens();
+            updateLvl2Status();
+        }
+
+        function startLvl2Timer() {
+            if (lvl2.timer) return;
+            lvl2.timer = setInterval(function() {
+                lvl2.seconds++;
+                var tEl = document.getElementById('lvl2Timer');
+                if (tEl) tEl.textContent = formatTime(lvl2.seconds);
+            }, 1000);
+        }
+
+        // ==================== 渲染成长 + 水壶 ====================
+        function renderGrowth() {
+            var s = lvl2.stage;
+            var bigTree = document.getElementById('bigTree');
+            if (bigTree) {
+                bigTree.textContent = s >= TREE_STAGES.length ? '\u{1F333}' : TREE_STAGES[s];
+                bigTree.classList.remove('watered', 'wrong');
+            }
+            var badges = document.getElementById('growthDots');
+            if (badges) {
+                var html = '';
+                for (var i = 0; i < 8; i++) {
+                    html += '<div class="growth-dot' + (i < s ? ' filled' : '') + '"></div>';
+                }
+                badges.innerHTML = html;
+            }
+            var nameBadge = document.getElementById('treeNameBadge');
+            if (nameBadge) {
+                if (s >= 8) {
+                    nameBadge.textContent = '\u{1F333} \u529F\u6210\u5706\u6EE1';
+                    nameBadge.style.background = 'linear-gradient(135deg,#ffe082,#ffb300)';
+                    nameBadge.style.color = '#e65100';
+                } else {
+                    // 显示该阶段对应的关键词条款
+                    var stage = REDLINE_STAGES[s];
+                    nameBadge.textContent = '\u{1F331} ' + stage.label;
+                    nameBadge.style.background = 'rgba(255,255,255,0.92)';
+                    nameBadge.style.color = '#1b5e20';
+                }
+            }
+            var hint = document.getElementById('lvl2Hint');
+            if (hint) {
+                if (s >= 8) {
+                    hint.innerHTML = '\u{1F389} \u606D\u559C\uFF01\u5C0F\u6811\u5DF2\u957F\u6210\u53C2\u5929\u5927\u6811\uFF01';
+                } else {
+                    hint.innerHTML = '\u{1F331} \u5173\u952E\u8BCD\uFF1A<span class="target-rule">' + REDLINE_STAGES[s].label + '</span><br>' + REDLINE_STAGES[s].rule;
+                }
+            }
+        }
+
+        function renderCanteens() {
+            if (typeof lvl2 === 'undefined') return;
+            var tray = document.getElementById('bucketTray');
+            if (!tray) return;
+            if (lvl2.stage >= 8) { tray.innerHTML = ''; return; }
+            var stage = lvl2.stage;
+            var used = [];
+            for (var i=0; i<REDLINE_STAGES.length; i++) { if (i!==stage) used.push(i); }
+            for (var s=used.length-1; s>0; s--) { var j=Math.floor(Math.random()*(s+1)); var tmp=used[s]; used[s]=used[j]; used[j]=tmp; }
+            var slots = [stage, used[0], used[1], used[2]];
+            for (var s=slots.length-1; s>0; s--) { var j=Math.floor(Math.random()*(s+1)); var tmp=slots[s]; slots[s]=slots[j]; slots[j]=tmp; }
+            var html = '';
+            for (var si=0; si<slots.length; si++) {
+                var cur = REDLINE_STAGES[slots[si]];
+                html += '<div class="bucket-item" data-idx="'+slots[si]+'" draggable="true">';
+                html += '<span class="bucket-ico">'+BUCKET_SVG+'</span>';
+                html += '<span class="bucket-text"><span class="bucket-rule">'+cur.rule+'</span></span></div>';
+            }
+            tray.innerHTML = html;
+            var bs = tray.querySelectorAll('.bucket-item');
+            for (var bi=0; bi<bs.length; bi++) {
+                var b = bs[bi];
+                b.addEventListener('dragstart', function(e) {
+                    dragIdx = parseInt(this.dataset.idx);
+                    this.classList.add('dragging');
+                    try { e.dataTransfer.setData('text/plain', String(dragIdx)); } catch(err) {}
+                    var dz = document.getElementById('waterCanDropzone');
+                    if (dz) dz.classList.add('drag-over');
+                });
+                b.addEventListener('dragend', function(e) {
+                    this.classList.remove('dragging');
+                    var dz = document.getElementById('waterCanDropzone');
+                    if (dz) dz.classList.remove('drag-over');
+                    dragIdx = null;
+                });
+                b.addEventListener('touchstart', function(e) {
+                    dragIdx = parseInt(this.dataset.idx); this.classList.add('dragging');
+                    if (dragGhost) { dragGhost.remove(); dragGhost=null; }
+                    dragGhost = document.createElement('div');
+                    dragGhost.className = 'bucket-item drag-ghost';
+                    dragGhost.innerHTML = '<span class="bucket-ico">'+BUCKET_SVG+'</span><span class="bucket-text"><span class="bucket-rule">'+REDLINE_STAGES[dragIdx].rule+'</span></span>';
+                    document.body.appendChild(dragGhost);
+                    var t = e.touches[0];
+                    if (dragGhost) { dragGhost.style.left=(t.clientX-45)+'px'; dragGhost.style.top=(t.clientY-25)+'px'; }
+                    var dz = document.getElementById('waterCanDropzone');
+                    if (dz) dz.classList.add('drag-over');
+                    e.preventDefault();
+                }, {passive:false});
+                b.addEventListener('touchmove', function(e) {
+                    if (dragIdx!==null && dragGhost) { var t=e.touches[0]; dragGhost.style.left=(t.clientX-45)+'px'; dragGhost.style.top=(t.clientY-25)+'px'; }
+                    e.preventDefault();
+                }, {passive:false});
+                b.addEventListener('touchend', function(e) {
+                    this.classList.remove('dragging');
+                    if (dragGhost) { dragGhost.remove(); dragGhost=null; }
+                    var dz = document.getElementById('waterCanDropzone');
+                    if (dz) dz.classList.remove('drag-over');
+                    if (dragIdx!==null) {
+                        var ct = e.changedTouches[0];
+                        if (dz) { var rect=dz.getBoundingClientRect(); if(ct.clientX>=rect.left-15&&ct.clientX<=rect.right+15&&ct.clientY>=rect.top-15&&ct.clientY<=rect.bottom+15) { evaluateAnswer(dragIdx); } }
+                        dragIdx = null;
+                    }
+                }, {passive:false});
+            }
+        }function updateLvl2Status() {
+            var v = document.getElementById('lvl2LevelVal');
+            if (v) v.textContent = Math.min(lvl2.stage, 8) + '/8';
+            var s = document.getElementById('lvl2ScoreVal');
+            if (s) s.textContent = lvl2.score;
+            var w = document.getElementById('lvl2WrongVal');
+            if (w) w.textContent = lvl2.wrong;
+        }
+
+function evaluateAnswer(idx) {
+            if (lvl2.stage >= 8) return;
+            startLvl2Timer();
+            if (idx === lvl2.stage) {
+                lvl2.stage++;
+                lvl2.score += 100;
+                spawnWater();
+                var bigTree = document.getElementById('bigTree');
+                if (bigTree) { bigTree.classList.add('watered'); setTimeout(function(){ if(bigTree) bigTree.classList.remove('watered'); },700); }
+                if (lvl2.stage >= 8) {
+                    if (lvl2.timer) { clearInterval(lvl2.timer); lvl2.timer=null; }
+                    renderGrowth();
+                    updateLvl2Status();
+                    endLvl2();
+                    return;
+                }
+            } else {
+                lvl2.wrong++;
+                lvl2.score = Math.max(0, lvl2.score - 20);
+                if (lvl2.stage > 0) lvl2.stage--;
+                var caps = document.querySelectorAll('.bucket-item');
+                for (var i=0; i<caps.length; i++) {
+                    if (parseInt(caps[i].dataset.idx) === idx) {
+                        caps[i].classList.remove('wrong-shake');
+                        void caps[i].offsetWidth;
+                        caps[i].classList.add('wrong-shake');
+                        setTimeout((function(el){ return function(){ if(el) el.classList.remove('wrong-shake'); }; })(caps[i]), 450);
+                    }
+                }
+                var bt = document.getElementById('bigTree');
+                if (bt) { bt.classList.add('wrong'); setTimeout(function(){ if(bt) bt.classList.remove('wrong'); },500); }
+                showToast('\u26A0 错误！小树降一级，扣除20分');
+            }
+            renderGrowth();
+            renderCanteens();
+            updateLvl2Status();
+        }
+
+function spawnWater() {
+            // 水壶向小树方向自动浇水动画：蓝色水滴从水壶飞向小树
+            var wcz = document.getElementById('waterCanDropzone');
+            var gs = document.getElementById('growthStage');
+            if (!wcz || !gs) return;
+
+            var wcRect = wcz.getBoundingClientRect();
+            var treeRect = gs.getBoundingClientRect();
+
+            // 水壶起点：水壶左侧偏上
+            var sx = wcRect.left + wcRect.width * 0.3;
+            var sy = wcRect.top + wcRect.height * 0.3;
+            // 小树终点：树区中央偏下（根部）
+            var tx = treeRect.left + treeRect.width / 2;
+            var ty = treeRect.top + treeRect.height * 0.65;
+
+            // 生成3颗依次飞行的水滴
+            var dropCount = 3;
+            for (var d = 0; d < dropCount; d++) {
+                (function(delayOffset) {
+                    setTimeout(function() {
+                        // 水滴
+                        var fly = document.createElement('div');
+                        fly.className = 'wc-flying-drop';
+                        fly.style.left = (sx - 7) + 'px';
+                        fly.style.top = (sy - 7) + 'px';
+                        document.body.appendChild(fly);
+
+                        // 飞行粒子水气
+                        var spray = document.createElement('div');
+                        spray.className = 'wc-spray';
+                        spray.textContent = '💦';
+                        spray.style.left = (sx - 6) + 'px';
+                        spray.style.top = (sy - 12) + 'px';
+                        document.body.appendChild(spray);
+
+                        requestAnimationFrame(function() {
+                            requestAnimationFrame(function() {
+                                fly.style.left = (tx - 7) + 'px';
+                                fly.style.top = (ty - 7) + 'px';
+                                spray.style.left = (tx + 8) + 'px';
+                                spray.style.top = (ty - 20) + 'px';
+                                fly.style.opacity = '0.6';
+                                spray.style.opacity = '0';
+                            });
+                        });
+
+                        // 到达后移除水滴，产生水花
+                        setTimeout(function() {
+                            if (fly.parentNode) fly.remove();
+                            if (spray.parentNode) spray.remove();
+                            if (d === dropCount - 1) {
+                                // 最后一滴水到达时，小树洒水花
+                                var splash = document.createElement('div');
+                                splash.className = 'tree-splash';
+                                splash.textContent = '💦';
+                                splash.style.left = tx + 'px';
+                                splash.style.top = ty + 'px';
+                                splash.style.animation = 'treeSplashAnim .7s ease-out forwards';
+                                document.body.appendChild(splash);
+                                setTimeout(function() {
+                                    if (splash.parentNode) splash.remove();
+                                    // 树生长特效
+                                    var bigTree = document.getElementById('bigTree');
+                                    if (bigTree) { bigTree.classList.add('watered'); setTimeout(function(){ if(bigTree) bigTree.classList.remove('watered'); },850); }
+                                }, 700);
+                            }
+                        }, 660);
+                    }, delayOffset);
+                })(d * 110);
+            }
+        }
+
+function endLvl2() {
+            var fT = document.getElementById('finalTime2');
+            if (fT) fT.textContent = formatTime(lvl2.seconds);
+            var fS = document.getElementById('finalScore2');
+            if (fS) fS.textContent = '得分: ' + lvl2.score + ' | 错误: ' + lvl2.wrong + '次';
+            var now = new Date();
+            var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+            var entry = { time: lvl2.seconds, score: lvl2.score, date: dateStr, level: 2 };
+            var pers = getPersonalRankings();
+            pers.push(entry);
+            localStorage.setItem('personalRankings', JSON.stringify(pers));
+            var glob = getGlobalRankings();
+            glob.push(entry);
+            glob.sort(function(a, b) { return a.time - b.time; });
+            if (glob.length > 100) glob.length = 100;
+            localStorage.setItem('globalRankings', JSON.stringify(glob));
+            var l2c = document.getElementById('lvl2CompleteOverlay');
+            if (l2c) { requestAnimationFrame(function() { l2c.classList.add('active'); spawnConfetti(); }); }
+        }
+
+function closeLvl2Complete() {
+            var l2c = document.getElementById('lvl2CompleteOverlay');
+            if (l2c) l2c.classList.remove('active');
+        }
+
+function restartLvl2() {
+            var l2c = document.getElementById('lvl2CompleteOverlay');
+            if (l2c) l2c.classList.remove('active');
+            startLvl2();
+        }
+
+// 成长区域接收 drop (桌面)
+        function setupGrowthDrop() {
+            var dz = document.getElementById('waterCanDropzone');
+            if (!dz) return;
+            dz.addEventListener('dragover', function(e) { e.preventDefault(); });
+            dz.addEventListener('dragenter', function(e) { e.preventDefault(); dz.classList.add('drag-over'); });
+            dz.addEventListener('dragleave', function(e) { dz.classList.remove('drag-over'); });
+            dz.addEventListener('drop', function(e) {
+                e.preventDefault(); dz.classList.remove('drag-over');
+                var idx = parseInt(e.dataTransfer.getData('text/plain'));
+                if (!isNaN(idx)) { dragIdx = null; evaluateAnswer(idx); }
+            });
+            dz.addEventListener('click', function() {
+                if (dragIdx !== null) { evaluateAnswer(dragIdx); dragIdx = null; }
+            });
+        }// ==================== Start ====================
+        setupGrowthDrop();
+        initGame();
+        renderLegend();
+    </script>
+</body>
+</html>
