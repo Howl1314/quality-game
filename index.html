@@ -1317,8 +1317,6 @@
 
         // ==================== Player ID ====================
         var currentPlayerId = '';
-        var ALL_TOTAL_KEY = 'qualityTreeAllTotalRankings';
-        var ALL_TOTAL_KEY = 'qualityTreeAllTotalRankings';
         var LEVEL_TIMES_PREFIX = 'qualityTreeLevelTimes_';
         // ===== CloudBase API 地址（替换成你的真实链接）=====
         var API_SUBMIT = 'https://quality-game-d5gu81ui847a86483-1466081733.ap-shanghai.app.tcloudbase.com/submitScore';
@@ -1344,13 +1342,6 @@
                 console.error('获取排行榜失败', e);
                 return [];
             }
-        }
-        // 本地缓存不再用于总排行榜，保留函数兼容旧代码
-        function setAllTotalRankings(list) {
-            // 总排行榜已迁移到云端，此函数不再使用
-        }
-        function setAllTotalRankings(list) {
-            try { localStorage.setItem(ALL_TOTAL_KEY, JSON.stringify(list)); } catch(e){}
         }
         function getCurrentLevelTimes() {
             if (!currentPlayerId) return {};
@@ -1409,6 +1400,13 @@
             }
         }
 
+        // 把当前本地三关最好成绩同步到云端（用于登录后和打开排行榜时手动兜底）
+        async function syncCurrentBestToCloud() {
+            if (!currentPlayerId) return;
+            var times = getCurrentLevelTimes();
+            await updateBestTotalRanking(times);
+        }
+
         function showPlayerIdOverlay() {
             var overlay = document.getElementById('playerIdOverlay');
             var input = document.getElementById('playerIdInput');
@@ -1438,6 +1436,8 @@
             switchLevel(1);
             initGame();
             renderLegend();
+            // 登录后，如果本地已有三关成绩，自动同步到云端
+            syncCurrentBestToCloud();
         }
 
         function initPlayerIdModal() {
@@ -2030,10 +2030,11 @@
             if (playerDisplay) {
                 playerDisplay.textContent = currentPlayerId ? '当前工号：' + currentPlayerId : '未输入工号';
             }
-        
-            // 1) 总排行榜：从云端获取所有玩家数据
+
+            // 1) 总排行榜：先把本地最好成绩同步到云端，再拉取全部排行
             if (currentRankTab === 'total') {
-                rankList.innerHTML = '<div class="rank-empty">加载中...</div>';
+                rankList.innerHTML = '<div class="rank-empty">同步并加载中...</div>';
+                await syncCurrentBestToCloud();
                 var all = await getAllTotalRankings();
                 if (all.length === 0) {
                     rankList.innerHTML = '<div class="rank-empty">暂无记录，通关全部三关后生成排行！</div>';
@@ -2059,7 +2060,7 @@
                 rankList.appendChild(cnt);
                 return;
             }
-        
+
             // 2) 个人排行榜：当前工号三关各自最好成绩（仍存本地）
             if (currentRankTab === 'personal') {
                 var times = currentPlayerId ? getCurrentLevelTimes() : {};
