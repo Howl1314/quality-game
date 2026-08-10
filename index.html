@@ -654,6 +654,37 @@
             margin-left: 4px;
         }
 
+        .page-view { display: none; }
+        .page-view.active { display: block; }
+        .page-view-content {
+            background: linear-gradient(180deg, #f1f8e9, #dcedc8);
+            border-radius: clamp(12px, 2.5vw, 18px);
+            padding: clamp(14px, 3vw, 24px);
+            border: 2px solid #81c784;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+            max-height: 70vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .page-view-content h2 {
+            color: #2e7d32;
+            font-size: clamp(18px, 4vw, 24px);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .page-view-content ul {
+            list-style: none;
+            padding: 0;
+        }
+        .page-view-content ul li {
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            border-left: 3px solid #43a047;
+        }
+        .page-view-content .rank-tabs { margin-top: 0; }
+
         .btn-primary {
             background: linear-gradient(135deg, #388e3c, #43a047);
             color: #fff;
@@ -1030,15 +1061,73 @@
         .toast.show {
             opacity: 1;
         }
+
+        /* ===== 玩家编号弹窗 ===== */
+        .player-id-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 250;
+            padding: 16px;
+        }
+        .player-id-card {
+            background: linear-gradient(180deg,#ffffff,#f1f8e9);
+            border-radius: 20px;
+            width: 100%; max-width: 420px;
+            padding: clamp(22px,5vw,34px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+            text-align: center;
+        }
+        .player-id-card h2 {
+            color: #1b5e20; font-size: clamp(20px,5vw,26px); margin-bottom: 10px;
+        }
+        .player-id-card p {
+            color: #555; font-size: clamp(13px,3.2vw,15px); line-height: 1.6; margin-bottom: 18px;
+        }
+        .player-id-card .id-input {
+            width: 100%; font-size: clamp(22px,6vw,30px); letter-spacing: 4px;
+            padding: 14px 18px; border: 2px solid #81c784; border-radius: 14px;
+            text-align: center; outline: none; color: #1b5e20; font-weight: bold;
+            background: #fff;
+        }
+        .player-id-card .id-input:focus {
+            border-color: #2e7d32; box-shadow: 0 0 0 4px rgba(46,125,50,0.15);
+        }
+        .player-id-card .id-error {
+            color: #c62828; font-size: 13px; min-height: 20px; margin-top: 10px; font-weight: 600;
+        }
+        .player-id-card .id-btn {
+            width: 100%; margin-top: 14px;
+            padding: 14px; border: none; border-radius: 30px;
+            font-size: 18px; font-weight: bold; color: #1a3a0a;
+            background: linear-gradient(135deg,#ffeb3b,#8bc34a);
+            cursor: pointer; box-shadow: 0 4px 16px rgba(139,195,74,.45);
+        }
+        .player-id-card .id-btn:disabled {
+            opacity: .5; cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
+
+    <!-- 玩家编号输入弹窗 -->
+    <div class="player-id-overlay" id="playerIdOverlay" style="display:none;">
+        <div class="player-id-card">
+            <h2>🎮 请输入玩家编号</h2>
+            <p>每位玩家只有一个以 <strong>60</strong> 开头的 <strong>8 位数字</strong>编号，输入正确后即可开始游戏。</p>
+            <input type="text" class="id-input" id="playerIdInput" maxlength="8" placeholder="60000000" inputmode="numeric" autocomplete="off">
+            <div class="id-error" id="playerIdError"></div>
+            <button class="id-btn" id="playerIdBtn">开始游戏</button>
+        </div>
+    </div>
 
     <div class="game-container" id="app">
         <div class="level-nav">
             <button class="level-nav-btn active" id="navL1Btn" onclick="switchLevel(1)">1️⃣ 质量消消乐</button>
             <button class="level-nav-btn" id="navL2Btn" onclick="switchLevel(2)">2️⃣ 浇水养成</button>
             <button class="level-nav-btn" id="navL3Btn" onclick="switchLevel(3)">3️⃣ 植物大战僵尸</button>
+            <button class="level-nav-btn" id="navRulesBtn" onclick="switchLevel('rules')">📖 游戏说明</button>
+            <button class="level-nav-btn" id="navRankBtn" onclick="switchLevel('rank')">🏆 排行榜</button>
         </div>
 
         <!-- 第一关：消消乐 -->
@@ -1047,8 +1136,6 @@
             <div class="game-title"><span class="icon">🌳</span> 质量树</div>
             <div class="header-right">
                 <div class="timer-display" id="timer">00:00</div>
-                <button class="btn-icon" onclick="showRules()" title="游戏规则">📖</button>
-                <button class="btn-icon" onclick="showRanking()" title="排行榜">🏆</button>
             </div>
         </div>
 
@@ -1110,57 +1197,41 @@
 
         <!-- 第三关：植物大战僵尸·质量打击 -->
         <div id="level3View">
-            <div class="lvl2-header">
+            <div class="lvl2-header" style="justify-content:center;gap:12px;margin-bottom:16px;">
                 <div class="lvl2-title">🌱 第三关 · 植物大战僵尸</div>
                 <div class="timer-display" id="lvl3Timer">00:00</div>
             </div>
             <div id="pvzGameRoot" style="position:relative;width:100%;"></div>
         </div>
-    </div> <!-- end game-container --><div class="overlay" id="rulesOverlay">
-        <div class="overlay-content">
-            <h2>📋 质量树 · 游戏规则</h2>
-            <p style="margin-bottom:10px;color:#558b2f;font-size:14px;">两关闯关，守护质量树成长！</p>
-            <ul>
-                <li>🌳 <strong>第一关</strong>：消除8种"质量红线"卡片，让质量树从🌱成长为🌳</li>
-                <li>🔗 <strong>消除规则</strong>：选中卡片 → 点击相邻卡片交换，<strong>3个及以上</strong>相同卡片连线即可消除</li>
-                <li>📊 <strong>计分</strong>：消除3个=30分，4个=60分，5个=100分；连击有额外加成</li>
-                <li>💧 <strong>第二关</strong>：通关第一关后解锁，拖动正确水壶浇水，让小树历经8阶段长成参天大树</li>
-                <li>❌ <strong>错误拖动</strong>：拖错水壶 → 小树降1级且扣除20分</li>
-                <li>⏱️ <strong>排名</strong>：通关时间越短，排名越靠前</li>
-            </ul>
-            <br>
-            <h2 style="font-size:clamp(15px,3vw,18px);">🚫 质量红线通则</h2>
-            <ul>
-                <li>🚨 <strong>禁止瞒报</strong> <span class="badge">瞒报</span><br><span style="font-size:12px;color:#689f38;">发现问题必须上报，禁止内部消化</span></li>
-                <li>🛑 <strong>禁止弄虚作假</strong> <span class="badge">造假</span><br><span style="font-size:12px;color:#689f38;">禁止篡改数据、虚假确认、私自放行</span></li>
-                <li>🔒 <strong>禁止私自变更</strong> <span class="badge">私变</span><br><span style="font-size:12px;color:#689f38;">禁止未走流程私自更改设计/工艺/参数</span></li>
-                <li>👤 <strong>禁止盗用权限</strong> <span class="badge">盗权</span><br><span style="font-size:12px;color:#689f38;">禁止盗用或滥用他人权限</span></li>
-                <li>📋 <strong>禁止违规操作</strong> <span class="badge">违规</span><br><span style="font-size:12px;color:#689f38;">禁止违反流程规程、消极怠工</span></li>
-                <li>📝 <strong>禁止数据造假</strong> <span class="badge">数据</span><br><span style="font-size:12px;color:#689f38;">禁止篡改杜撰首件/过程/FTY等数据</span></li>
-                <li>⚙️ <strong>禁止私改参数</strong> <span class="badge">参数</span><br><span style="font-size:12px;color:#689f38;">禁止私改设备参数、屏蔽防呆功能</span></li>
-                <li>🔍 <strong>禁止虚假确认</strong> <span class="badge">确认</span><br><span style="font-size:12px;color:#689f38;">禁止未按三现原则进行落地检查</span></li>
-            </ul>
-            <br>
-            <button class="btn-primary" onclick="closeRules()">👍 知道了，开始游戏！</button>
-        </div>
-    </div>
 
-    <div class="overlay" id="rankOverlay">
-        <div class="overlay-content">
-            <div class="rank-tabs">
-                <button class="rank-tab active" data-tab="global" onclick="switchRankTab('global')">🌳 质量树排行</button>
-                <button class="rank-tab" data-tab="personal" onclick="switchRankTab('personal')">👤 个人排行</button>
-                <button class="rank-tab" data-tab="total" onclick="switchRankTab('total')">⏱️ 总时长排行</button>
+        <div class="page-view" id="rulesView">
+            <div class="page-view-content">
+                <h2>📋 质量树 · 游戏规则</h2>
+                <div class="rank-tabs">
+                    <button class="rank-tab active" data-tab="level1" onclick="switchRulesTab('level1')">🌳 第一关</button>
+                    <button class="rank-tab" data-tab="level2" onclick="switchRulesTab('level2')">🌱 第二关</button>
+                    <button class="rank-tab" data-tab="level3" onclick="switchRulesTab('level3')">🌻 第三关</button>
+                    <button class="rank-tab" data-tab="redline" onclick="switchRulesTab('redline')">🚫 质量红线</button>
+                </div>
+                <div class="rank-list" id="rulesContent"></div>
             </div>
-            <div class="rank-list" id="rankList">
-                <div class="rank-empty">暂无记录，快来挑战吧！</div>
-            </div>
-            <button class="btn-secondary" onclick="clearRanking()" style="margin-top:2px;">🗑️ 清空个人记录</button>
-            <button class="btn-primary" onclick="closeRanking()" style="margin-top:6px;">关闭</button>
         </div>
-    </div>
 
-    <div class="overlay" id="completeOverlay">
+        <div class="page-view" id="rankView">
+            <div class="page-view-content">
+                <h2>🏆 排行榜</h2>
+                <div class="rank-tabs">
+                    <button class="rank-tab active" data-tab="total" onclick="switchRankTab('total')">🏆 总排行榜</button>
+                    <button class="rank-tab" data-tab="personal" onclick="switchRankTab('personal')">👤 个人排行榜</button>
+                </div>
+                <div id="currentPlayerDisplay" style="text-align:center;color:#2e7d32;font-size:12px;font-weight:600;margin-bottom:8px;"></div>
+                <input type="text" id="rankSearchInput" maxlength="8" placeholder="输入工号查找排名" oninput="filterRankings()" inputmode="numeric" autocomplete="off" style="width:100%;padding:8px 12px;border:2px solid #81c784;border-radius:22px;font-size:14px;color:#1b5e20;margin-bottom:10px;outline:none;">
+                <div class="rank-list" id="rankList">
+                    <div class="rank-empty">暂无记录，快来挑战吧！</div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- end game-container --><div class="overlay" id="completeOverlay">
         <div class="overlay-content" style="text-align:center;">
             <div class="complete-title">🎉 🌳</div>
             <div class="complete-title" style="font-size:clamp(22px,4.5vw,28px);color:#2e7d32;">质量树已长成！</div>
@@ -1181,8 +1252,41 @@
             <div class="complete-label">⏱️ 第二关通关时间</div>
             <div class="complete-time" id="finalTime2">00:00</div>
             <div style="color:#33691e;font-size:13px;margin-bottom:12px;" id="finalScore2">得分: 0 | 错误: 0次</div>
-            <button class="btn-primary" onclick="closeLvl2Complete()">👍 太棒了！</button>
+            <div style="background:#fff9c4;border:2px solid #fbc02d;border-radius:10px;padding:10px 14px;color:#f57f17;font-weight:700;margin-bottom:12px;font-size:13px;">
+                🧟 下一关：植物大战僵尸 · 最终BOSS！
+            </div>
+            <button class="btn-primary" onclick="closeLvl2Complete();switchLevel(3);">🌻 进入第三关</button>
+            <button class="btn-secondary" onclick="closeLvl2Complete()" style="margin-top:6px;">👍 先不进入</button>
             <button class="btn-secondary" onclick="restartLvl2()" style="margin-top:6px;">🔄 再来一次</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="lvl1StartOverlay">
+        <div class="overlay-content" style="text-align:center;">
+            <div class="complete-title">🌳</div>
+            <div class="complete-title" style="font-size:clamp(22px,4.5vw,28px);color:#2e7d32;">第一关 · 质量消消乐</div>
+            <div class="complete-subtitle">消除8种质量红线卡片，让质量树从幼苗长成大树</div>
+            <ul style="text-align:left;margin-bottom:12px;">
+                <li>🔗 <strong>操作</strong>：选中卡片 → 点击相邻卡片交换位置</li>
+                <li>✅ <strong>消除</strong>：3个及以上相同卡片连线即可消除</li>
+                <li>🌳 <strong>通关</strong>：8种不同卡片都至少消除一次即可进入下一关</li>
+                <li>📊 <strong>计分</strong>：3个=30分、4个=60分、5个=100分；连击额外加成</li>
+            </ul>
+            <button class="btn-primary" onclick="closeLvl1Start()">🎮 开始游戏</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="lvl2StartOverlay">
+        <div class="overlay-content" style="text-align:center;">
+            <div class="complete-title">🌱</div>
+            <div class="complete-title" style="font-size:clamp(22px,4.5vw,28px);color:#2e7d32;">第二关 · 浇水养成</div>
+            <div class="complete-subtitle">拖动右侧正确的水桶到中央水壶，按顺序浇灌小树</div>
+            <ul style="text-align:left;margin-bottom:12px;">
+                <li>🌳 每阶段都会给出当前需要的<strong>关键词</strong>，找到对应规则的水桶</li>
+                <li>❌ 拖错水桶 → 小树降1级并扣除20分</li>
+                <li>⏱️ 连续正确浇灌8次，让小树长成参天大树即可通关</li>
+            </ul>
+            <button class="btn-primary" onclick="closeLvl2Start()">💧 开始浇水</button>
         </div>
     </div>
 
@@ -1211,6 +1315,142 @@
             { id: 'confirm',   emoji: '🔍', label: '确认', rule: '禁止虚假落地确认' }
         ];
 
+        // ==================== Player ID ====================
+        var currentPlayerId = '';
+        var PLAYER_ID_KEY = 'qualityTreePlayerId';
+        var ALL_TOTAL_KEY = 'qualityTreeAllTotalRankings';
+        var LEVEL_TIMES_PREFIX = 'qualityTreeLevelTimes_';
+
+        function isValidPlayerId(id) {
+            return typeof id === 'string' && /^60\d{6}$/.test(id);
+        }
+        function getStoredPlayerId() {
+            try { return localStorage.getItem(PLAYER_ID_KEY) || ''; } catch(e){ return ''; }
+        }
+        function setStoredPlayerId(id) {
+            try { localStorage.setItem(PLAYER_ID_KEY, id); } catch(e){}
+        }
+        function getAllTotalRankings() {
+            try { return JSON.parse(localStorage.getItem(ALL_TOTAL_KEY) || '[]'); }
+            catch(e){ return []; }
+        }
+        function setAllTotalRankings(list) {
+            try { localStorage.setItem(ALL_TOTAL_KEY, JSON.stringify(list)); } catch(e){}
+        }
+        function getCurrentLevelTimes() {
+            if (!currentPlayerId) return {};
+            try { return JSON.parse(localStorage.getItem(LEVEL_TIMES_PREFIX + currentPlayerId) || '{}'); }
+            catch(e){ return {}; }
+        }
+        function setCurrentLevelTimes(times) {
+            if (!currentPlayerId) return;
+            try { localStorage.setItem(LEVEL_TIMES_PREFIX + currentPlayerId, JSON.stringify(times)); } catch(e){}
+        }
+
+        function formatDateNow() {
+            var now = new Date();
+            return now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+        }
+
+        function recordLevelTime(level, seconds) {
+            if (!currentPlayerId) return false;
+            var times = getCurrentLevelTimes();
+            var key = 'level' + level;
+            var old = times[key];
+            // 只保留该关卡最短用时
+            if (old === undefined || seconds < old) {
+                times[key] = seconds;
+                times[key + 'Date'] = formatDateNow();
+                setCurrentLevelTimes(times);
+                updateBestTotalRanking(times);
+                return true;
+            }
+            return false;
+        }
+
+        function updateBestTotalRanking(times) {
+            if (!currentPlayerId) return;
+            var l1 = times.level1, l2 = times.level2, l3 = times.level3;
+            // 三关都有成绩时才参与总排行榜
+            if (!l1 || !l2 || !l3) return;
+            var total = l1 + l2 + l3;
+            var list = getAllTotalRankings();
+            var existingIndex = -1;
+            for (var i = 0; i < list.length; i++) {
+                if (list[i].id === currentPlayerId) { existingIndex = i; break; }
+            }
+            var now = formatDateNow();
+            var entry = {
+                id: currentPlayerId,
+                totalTime: total,
+                level1Time: l1,
+                level2Time: l2,
+                level3Time: l3,
+                date: now
+            };
+            var needUpdate = false;
+            if (existingIndex === -1) {
+                list.push(entry);
+                needUpdate = true;
+            } else if (total < list[existingIndex].totalTime) {
+                list[existingIndex] = entry;
+                needUpdate = true;
+            }
+            if (needUpdate) {
+                list.sort(function(a,b){ return a.totalTime - b.totalTime; });
+                if (list.length > 100) list.length = 100;
+                setAllTotalRankings(list);
+            }
+        }
+
+        function showPlayerIdOverlay() {
+            var overlay = document.getElementById('playerIdOverlay');
+            var input = document.getElementById('playerIdInput');
+            var stored = getStoredPlayerId();
+            if (overlay) overlay.style.display = 'flex';
+            if (input) {
+                input.value = stored || '';
+                input.focus();
+            }
+        }
+        function hidePlayerIdOverlay() {
+            var overlay = document.getElementById('playerIdOverlay');
+            if (overlay) overlay.style.display = 'none';
+        }
+
+        function confirmPlayerId() {
+            var input = document.getElementById('playerIdInput');
+            var error = document.getElementById('playerIdError');
+            var id = (input ? input.value.trim() : '');
+            if (!isValidPlayerId(id)) {
+                if (error) error.textContent = '请输入以 60 开头的 8 位数字编号';
+                return;
+            }
+            currentPlayerId = id;
+            setStoredPlayerId(id);
+            hidePlayerIdOverlay();
+            switchLevel(1);
+            initGame();
+            renderLegend();
+        }
+
+        function initPlayerIdModal() {
+            var stored = getStoredPlayerId();
+            var btn = document.getElementById('playerIdBtn');
+            var input = document.getElementById('playerIdInput');
+            // 每次进入页面都弹出工号输入框，允许重新输入或切换账号
+            showPlayerIdOverlay();
+            if (input) {
+                input.value = (stored && isValidPlayerId(stored)) ? stored : '';
+                input.focus();
+            }
+            if (btn) btn.addEventListener('click', confirmPlayerId);
+            if (input) {
+                input.addEventListener('keydown', function(e){ if(e.key === 'Enter') confirmPlayerId(); });
+                input.addEventListener('input', function(e){e.target.value=e.target.value.replace(/\D/g,'');});
+            }
+        }
+
         // ==================== DOM ====================
         var boardEl = document.getElementById('board');
         var timerEl = document.getElementById('timer');
@@ -1221,8 +1461,8 @@
         var scoreDisplay = document.getElementById('scoreDisplay');
         var comboCount = document.getElementById('comboCount');
         var comboDisplay = document.getElementById('comboDisplay');
-        var rulesOverlay = document.getElementById('rulesOverlay');
-        var rankOverlay = document.getElementById('rankOverlay');
+        var rulesView = document.getElementById('rulesView');
+        var rankView = document.getElementById('rankView');
         var completeOverlay = document.getElementById('completeOverlay');
         var rankList = document.getElementById('rankList');
         var finalTime = document.getElementById('finalTime');
@@ -1243,6 +1483,7 @@
         var timerInterval = null;
         var seconds = 0;
         var isStuck = false;
+        var lvl1IntroShown = false;
 
         // ==================== Init ====================
         function initGame() {
@@ -1268,10 +1509,6 @@
             }
             renderBoard();
             updateUI();
-            rulesOverlay.classList.add('active');
-            if (window.location.search.indexOf('play=1') !== -1) {
-                setTimeout(closeRules, 80);
-            }
             updateShuffleButton();
             updateLegend();
         }
@@ -1741,8 +1978,7 @@
             if (win) {
                 finalTime.textContent = formatTime(seconds);
                 finalScore.textContent = '得分: ' + score + ' | 步数: ' + moveCount + ' | 最高连击: ' + combo;
-                rankScoreEntry = { time: seconds, score: score, date: '', level: 1 };
-                saveRanking(seconds, score, 1);
+                recordLevelTime(1, seconds);
                 // 通关第一关，解锁第二关
                 lvl2Unlocked = true;
                 unlockLvl2Nav();
@@ -1778,110 +2014,114 @@
         }
 
         // ==================== Rankings ====================
-        var currentRankTab = 'global';
-        var rankScoreEntry = null;
-
-        function getPersonalRankings() {
-            try {
-                return JSON.parse(localStorage.getItem('personalRankings') || '[]');
-            } catch (e) { return []; }
-        }
-
-        function getGlobalRankings() {
-            try {
-                return JSON.parse(localStorage.getItem('globalRankings') || '[]');
-            } catch (e) { return []; }
-        }
-        function getTotalRankings() {
-            try { return JSON.parse(localStorage.getItem('totalRankings') || '[]'); }
-            catch (e) { return []; }
-        }
-        function saveTotalRanking(totalTime) {
-            var now = new Date();
-            var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-            var entry = { time: totalTime, date: dateStr };
-            var list = getTotalRankings();
-            list.push(entry);
-            list.sort(function(a,b){ return a.time - b.time; });
-            if (list.length > 100) list.length = 100;
-            localStorage.setItem('totalRankings', JSON.stringify(list));
-        }
-
-
-        function saveRanking(time, score, level) {
-            var now = new Date();
-            var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-            var lv = level || (rankScoreEntry ? rankScoreEntry.level || 1 : 1);
-            if (rankScoreEntry) {
-                rankScoreEntry.date = dateStr;
-                rankScoreEntry = null;
-            }
-            var entry = {
-                time: time,
-                score: score,
-                date: dateStr,
-                level: lv
-            };
-            var personal = getPersonalRankings();
-            personal.push(entry);
-            localStorage.setItem('personalRankings', JSON.stringify(personal));
-            var global = getGlobalRankings();
-            global.push(entry);
-            global.sort(function(a, b) { return a.time - b.time; });
-            if (global.length > 100) global.length = 100;
-            localStorage.setItem('globalRankings', JSON.stringify(global));
-        }
+        var currentRankTab = 'total';
 
         function renderRankings() {
             rankList.innerHTML = '';
+            var searchInput = document.getElementById('rankSearchInput');
+            if (searchInput) searchInput.style.display = (currentRankTab === 'total') ? '' : 'none';
+            var playerDisplay = document.getElementById('currentPlayerDisplay');
+            if (playerDisplay) {
+                playerDisplay.textContent = currentPlayerId ? '当前工号：' + currentPlayerId : '未输入工号';
+            }
+
+            // 1) 总排行榜：所有玩家三关最短总时长排名
             if (currentRankTab === 'total') {
-                var tdata = getTotalRankings();
-                if (tdata.length === 0) {
-                    rankList.innerHTML = '<div class="rank-empty">暂无记录，通关全部三关后产生总时长！</div>';
+                var all = getAllTotalRankings();
+                if (all.length === 0) {
+                    rankList.innerHTML = '<div class="rank-empty">暂无记录，通关全部三关后生成排行！</div>';
                     return;
                 }
-                tdata.sort(function(a, b) { return a.time - b.time; });
-                for (var i = 0; i < tdata.length && i < 100; i++) {
-                    var e = tdata[i];
+                for (var i = 0; i < all.length; i++) {
+                    var e = all[i];
+                    var isMe = e.id === currentPlayerId;
                     var item = document.createElement('div');
                     item.className = 'rank-item';
+                    item.style.background = isMe ? 'rgba(255,235,59,0.18)' : '';
                     var numClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
                     var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '' + (i+1);
-                    item.innerHTML = '<div class="rank-num ' + numClass + '">' + medal + '</div><div class="rank-name">' + (e.date || '未知') + '</div><div class="rank-time">⏱️ ' + formatTime(e.time) + '</div>';
+                    var name = (e.id || '未知编号') + (isMe ? ' 👤' : '');
+                    item.innerHTML = '<div class="rank-num ' + numClass + '">' + medal + '</div><div class="rank-name" style="font-size:12px;">' + name + '<br><span style="font-size:10px;color:#888;">' + (e.date || '') + '</span></div><div class="rank-time">⏱️ ' + formatTime(e.totalTime) + '</div>';
                     rankList.appendChild(item);
                 }
                 var cnt = document.createElement('div');
+                cnt.className = 'rank-count';
                 cnt.style.cssText = 'text-align:center;color:#689f38;font-size:12px;margin-top:8px;';
-                cnt.textContent = '共 ' + tdata.length + ' 条总时长记录（前100名）';
+                cnt.textContent = '共 ' + all.length + ' 名玩家';
                 rankList.appendChild(cnt);
                 return;
             }
-            var data = currentRankTab === 'global' ? getGlobalRankings() : getPersonalRankings();
-            if (data.length === 0) {
-                rankList.innerHTML = '<div class="rank-empty">暂无记录，快来挑战吧！</div>';
+
+            // 2) 个人排行榜：当前工号三关各自最好成绩 + 总最好成绩
+            if (currentRankTab === 'personal') {
+                var times = currentPlayerId ? getCurrentLevelTimes() : {};
+                if (!currentPlayerId || (!times.level1 && !times.level2 && !times.level3)) {
+                    rankList.innerHTML = '<div class="rank-empty">暂无个人通关记录，请先游玩三关！</div>';
+                    return;
+                }
+                var bestTotal = (times.level1||0)+(times.level2||0)+(times.level3||0);
+                var rows = [
+                    { label: '🌳 第一关 · 质量消消乐', t: times.level1 },
+                    { label: '🌱 第二关 · 浇水养成', t: times.level2 },
+                    { label: '🌻 第三关 · 植物大战僵尸', t: times.level3 },
+                    { label: '⏱️ 三关总时长（最短）', t: bestTotal, strong: true }
+                ];
+                for (var j = 0; j < rows.length; j++) {
+                    var r = rows[j];
+                    var item = document.createElement('div');
+                    item.className = 'rank-item';
+                    item.style.background = r.strong ? 'rgba(255,241,118,0.18)' : '';
+                    item.innerHTML = '<div class="rank-name" style="flex:1;text-align:left;' + (r.strong ? 'font-weight:800;' : '') + '">' + r.label + '</div><div class="rank-time"' + (r.strong ? ' style="color:#f57f17;"' : '') + '>' + (r.t > 0 ? formatTime(r.t) : '未通关') + '</div>';
+                    rankList.appendChild(item);
+                }
                 return;
             }
-            data.sort(function(a, b) { return a.time - b.time; });
-            var maxShow = currentRankTab === 'global' ? 100 : data.length;
-            for (var i = 0; i < data.length && i < maxShow; i++) {
-                var entry = data[i];
-                var item = document.createElement('div');
-                item.className = 'rank-item';
-                var numClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
-                var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '' + (i+1);
-                var timeStr = formatTime(entry.time);
-                var dateStr = entry.date || '未知';
-                var lvlTag = entry.level === 2 ? '<span class="rank-level" style="background:#e1bee7;color:#6a1b9a;border-radius:8px;padding:1px 6px;font-size:10px;font-weight:700;">2</span>' : '<span class="rank-level" style="background:#c8e6c9;color:#2e7d32;border-radius:8px;padding:1px 6px;font-size:10px;font-weight:700;">1</span>';
-                item.innerHTML = '<div class="rank-num ' + numClass + '">' + medal + '</div><div class="rank-name">' + dateStr + '</div><div class="rank-time">' + lvlTag + ' ' + timeStr + '</div>';
-                rankList.appendChild(item);
+        }
+
+        function filterRankings() {
+            var input = document.getElementById('rankSearchInput');
+            var val = input ? input.value.replace(/\D/g, '') : '';
+            if (input) input.value = val;
+            var items = rankList.querySelectorAll('.rank-item');
+            var visibleCount = 0;
+            for (var i = 0; i < items.length; i++) {
+                var nameEl = items[i].querySelector('.rank-name');
+                var text = nameEl ? nameEl.textContent : '';
+                var show = !val || text.indexOf(val) !== -1;
+                items[i].style.display = show ? 'flex' : 'none';
+                if (show) visibleCount++;
             }
-            if (currentRankTab === 'personal') {
-                var count = document.createElement('div');
-                count.style.cssText = 'text-align:center;color:#689f38;font-size:12px;margin-top:8px;';
-                count.textContent = '共 ' + data.length + ' 次记录';
-                rankList.appendChild(count);
+            var cnt = rankList.querySelector('.rank-count');
+            if (cnt) {
+                cnt.textContent = val ? '搜索到 ' + visibleCount + ' 名玩家' : '共 ' + items.length + ' 名玩家';
+                cnt.style.display = '';
             }
         }
+
+        var currentRulesTab = 'level1';
+        function switchRulesTab(tab) {
+            currentRulesTab = tab;
+            var tabs = document.querySelectorAll('#rulesView .rank-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.toggle('active', tabs[i].dataset.tab === tab);
+            }
+            renderRulesContent();
+        }
+        function renderRulesContent() {
+            var el = document.getElementById('rulesContent');
+            if (!el) return;
+            if (currentRulesTab === 'level1') {
+                el.innerHTML = '<ul><li>🌳 <strong>目标</strong>：消除8种"质量红线"卡片，让质量树从🌱成长为🌳</li><li>🔗 <strong>消除规则</strong>：选中卡片 → 点击相邻卡片交换，<strong>3个及以上</strong>相同卡片连线即可消除</li><li>📊 <strong>计分</strong>：消除3个=30分，4个=60分，5个=100分；连击有额外加成</li><li>⏱️ <strong>通关</strong>：8种卡片都至少消除一次即可进入下一关</li></ul>';
+            } else if (currentRulesTab === 'level2') {
+                el.innerHTML = '<ul><li>💧 <strong>目标</strong>：拖动正确水壶浇水，让小树历经8阶段长成参天大树</li><li>🌱 <strong>操作</strong>：查看当前阶段关键词，从右侧水桶中拖动对应规则的水桶到中央水壶</li><li>❌ <strong>错误拖动</strong>：拖错水桶 → 小树降1级且扣除20分</li><li>🏆 <strong>通关</strong>：连续正确浇灌8次，小树长成参天大树</li></ul>';
+            } else if (currentRulesTab === 'level3') {
+                el.innerHTML = '<ul><li>🌻 <strong>目标</strong>：击败所有质量僵尸，守护底部防线</li><li>👆 <strong>操作</strong>：点击下方与僵尸对应的正确内容卡片进行打击</li><li>🌊 <strong>波次</strong>：共分2波，每波4个僵尸，全部击倒即可通关</li><li>💀 <strong>失败条件</strong>：任一僵尸到达底部防线就会爆炸失败</li></ul>';
+            } else if (currentRulesTab === 'redline') {
+                el.innerHTML = '<ul><li>🚨 <strong>禁止瞒报</strong>：发现问题必须上报，禁止内部消化</li><li>🛑 <strong>禁止弄虚作假</strong>：禁止篡改数据、虚假确认、私自放行</li><li>🔒 <strong>禁止私自变更</strong>：禁止未走流程私自更改设计/工艺/参数</li><li>👤 <strong>禁止盗用权限</strong>：禁止盗用或滥用他人权限</li><li>📋 <strong>禁止违规操作</strong>：禁止违反流程规程、消极怠工</li><li>📝 <strong>禁止数据造假</strong>：禁止篡改杜撰首件/过程/FTY等数据</li><li>⚙️ <strong>禁止私改参数</strong>：禁止私改设备参数、屏蔽防呆功能</li><li>🔍 <strong>禁止虚假确认</strong>：禁止未按三现原则进行落地检查</li></ul>';
+            }
+        }
+        function closeLvl1Start() { document.getElementById('lvl1StartOverlay').classList.remove('active'); }
+        function closeLvl2Start() { document.getElementById('lvl2StartOverlay').classList.remove('active'); }
 
         function switchRankTab(tab) {
             currentRankTab = tab;
@@ -1892,18 +2132,11 @@
             renderRankings();
         }
 
-        function clearRanking() {
-            if (confirm('确定要清空个人排行榜的所有历史记录吗？此操作不可恢复。')) {
-                localStorage.removeItem('personalRankings');
-                renderRankings();
-            }
-        }
-
         // ==================== Overlay Controls ====================
-        function showRules() { rulesOverlay.classList.add('active'); }
-        function closeRules() { rulesOverlay.classList.remove('active'); }
-        function showRanking() { renderRankings(); rankOverlay.classList.add('active'); }
-        function closeRanking() { rankOverlay.classList.remove('active'); }
+        function showRules() { currentRulesTab = 'level1'; switchRulesTab('level1'); if (rulesView) rulesView.classList.add('active'); }
+        function closeRules() { if (rulesView) rulesView.classList.remove('active'); }
+        function showRanking() { renderRankings(); if (rankView) rankView.classList.add('active'); }
+        function closeRanking() { if (rankView) rankView.classList.remove('active'); }
         function closeComplete() { completeOverlay.classList.remove('active'); }
         function restartFromComplete() {
             completeOverlay.classList.remove('active');
@@ -1992,7 +2225,8 @@
             wrong: 0,
             timer: null,
             seconds: 0,
-            started: false
+            started: false,
+            introShown: false
         };
 
         var dragIdx = null;
@@ -2017,10 +2251,10 @@
             [4,5,6,7]
         ];
         var pvzW=840, pvzH=1280;
-        var pvzLanes=[220,420,620]; // 3条窄车道（列位置x中心，僵尸自上而下移动）
-        var pvzLoseY=932; // 底部防线：僵尸中心到达即触碰小人→爆炸失败
-        var pvzPersonX=420, pvzPersonY=984; // 底部防守小人位置（居中）
-        var pvzBulletRowTop=1040; // 下方子弹卡片区起始y（与僵尸行进路线分隔，互不干扰）
+        var pvzLanes=[200,420,640]; // 3条窄车道（列位置x中心，僵尸自上而下移动）
+        var pvzLoseY=940; // 底部防线：僵尸中心到达即触碰小人→爆炸失败
+        var pvzPersonX=420, pvzPersonY=990; // 底部防守小人位置（居中）
+        var pvzBulletRowTop=1016; // 下方子弹卡片区起始y（与僵尸行进路线分隔，互不干扰）
         var pvzRunning=false, pvzWave=1, pvzWaveIdx=0, pvzGameTimer=0, pvzTimerInterval=null, pvzAnimId=null, pvzParticleAnimId=null;
         var pvzZombies=[], pvzBullets=[];
         var pvzDefeated={}, pvzSpawnTimer=null, pvzParticles=[];
@@ -2041,7 +2275,8 @@
                 +'<button class="pbtn" id="pNextWaveBtn">进入第二波</button></div>'
                 +'<div class="pscreen" id="pWinScreen" style="display:none"><div class="ptitle">🎉 恭喜您已通关！</div>'
                 +'<div class="psub" id="pWinSub">所有质量僵尸全部倒地！</div>'
-                +'<button class="pbtn" id="pRetryAllBtn">再玩一次</button></div>'
+                +'<button class="pbtn" id="pRetryAllBtn">再玩一次</button>'
+                +'<button class="pbtn" id="pEndGameBtn" style="background:#ff7043;margin-top:10px;">结束游玩</button></div>'
                 +'<div class="pscreen" id="pLoseScreen" style="display:none"><div class="ptitle">💀 游戏失败</div>'
                 +'<div class="psub" id="pLoseReason">僵尸接触到了底部的小人，爆炸了！</div>'
                 +'<button class="pbtn" id="pRetryBtn">重新开始</button></div>'
@@ -2054,7 +2289,7 @@
         // ---- 僵尸类（自上而下移动；车道Lane决定所在列x） ----
         function pvzZombie(bossIdx, lane, speed, delayMs){
             this.bossIdx=bossIdx; this.data=pvzBOSS[bossIdx]; this.lane=lane;
-            this.width=108; this.height=92; this.speed=speed;
+            this.width=216; this.height=184; this.speed=speed;
             this.x=pvzLanes[lane]-this.width/2; this.y=-this.height; // 从画布顶部外出现，向下移动
             this.spawnTime=Date.now()+delayMs; this.moving=false; this.startTime=0;
             this.alive=true; this.hitFlash=0; this.content=this.data.content.slice();
@@ -2070,7 +2305,7 @@
         };
         pvzZombie.prototype.draw=function(ctx){
             if(!this.alive) return;
-            var s=this.width/130; // 比例缩放系数（僵尸按画布缩小同步缩放）
+            var s=this.width/130; // 比例缩放系数（僵尸图标已放大两倍）
             var cx=this.x+this.width/2, cy=this.y+this.height/2;
             if(!this.moving) ctx.globalAlpha=0.4;
             // 阴影
@@ -2084,11 +2319,12 @@
             ctx.fillStyle='#1a1a1a'; ctx.beginPath(); ctx.arc(cx-14*s,cy-6*s,4*s,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx+14*s,cy-6*s,4*s,0,Math.PI*2); ctx.fill();
             // 嘴
             ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx,cy+6*s,12*s,0.1,Math.PI-0.1); ctx.stroke();
-            // 僵尸名
-            var tw=ctx.measureText(this.data.name).width+16; ctx.fillStyle='rgba(0,0,0,0.72)'; pvzRoundRect(ctx,cx-tw/2,this.y+this.height-30,tw,23,6); ctx.fill();
-            ctx.fillStyle=this.data.color; ctx.font='bold 12px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(this.data.name,cx,this.y+this.height-19);
-            ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='10px "Microsoft YaHei"'; ctx.fillText('血量 '+this.content.length, cx, this.y+this.height+10);
-            if(!this.moving){ ctx.globalAlpha=1; ctx.fillStyle='rgba(255,235,59,0.6)'; ctx.font='12px "Microsoft YaHei"'; var cd=Math.max(0,Math.ceil((this.spawnTime-Date.now())/1000)); ctx.fillText(cd+'s 后出现',cx,this.y-14); }
+            // 僵尸名（字体随图标同步放大两倍）
+            var nf=Math.round(15*s); // 名称字号（随s约2倍放大）
+            var tw=ctx.measureText(this.data.name).width+nf+14; ctx.fillStyle='rgba(0,0,0,0.72)'; pvzRoundRect(ctx,cx-tw/2,this.y+this.height-nf-14,tw,nf+14,8); ctx.fill();
+            ctx.fillStyle=this.data.color; ctx.font='bold '+nf+'px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(this.data.name,cx,this.y+this.height-nf/2-4);
+            ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.font='bold '+Math.round(13*s)+'px "Microsoft YaHei"'; ctx.fillText('血量 '+this.content.length, cx, this.y+this.height+18);
+            if(!this.moving){ ctx.globalAlpha=1; ctx.fillStyle='rgba(255,235,59,0.6)'; ctx.font='bold '+Math.round(14*s)+'px "Microsoft YaHei"'; var cd=Math.max(0,Math.ceil((this.spawnTime-Date.now())/1000)); ctx.fillText(cd+'s 后出现',cx,this.y-16); }
         };
         pvzZombie.prototype.hitTest=function(px,py){ return this.moving&&px>=this.x&&px<=this.x+this.width&&py>=this.y-15&&py<=this.y+this.height; };
         pvzZombie.prototype.matchContent=function(t){ var i=this.content.indexOf(t); if(i!==-1){this.content.splice(i,1);this.hitFlash=1.0;return true;} return false; };
@@ -2108,12 +2344,12 @@
                 // 已使用的子弹：整体颜色变暗变绿，标记已用，不可再使用
                 ctx.fillStyle='#c5e1a5'; pvzRoundRect(ctx,this.x,this.y,this.w,this.h,r); ctx.fill();
                 ctx.shadowBlur=0; ctx.strokeStyle='#689f38'; ctx.lineWidth=1.5; pvzRoundRect(ctx,this.x,this.y,this.w,this.h,r); ctx.stroke();
-                ctx.fillStyle='#4a7a2a'; ctx.font='bold '+pvzFitFont(ctx,'\u2713 '+this.contentText,this.w,Math.max(9,Math.floor(this.h*0.6)))+'px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('\u2713 '+this.contentText, cx, cy);
+                ctx.fillStyle='#4a7a2a'; ctx.font='bold '+pvzFitFont(ctx,'\u2713 '+this.contentText,this.w,Math.max(18,Math.floor(this.h*0.85)))+'px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('\u2713 '+this.contentText, cx, cy);
                 ctx.restore(); return;
             }
             ctx.fillStyle='#fffde7'; pvzRoundRect(ctx,this.x,this.y,this.w,this.h,r); ctx.fill();
             ctx.shadowBlur=0; ctx.strokeStyle=pvzBOSS[this.bossIdx].color; ctx.lineWidth=2; pvzRoundRect(ctx,this.x,this.y,this.w,this.h,r); ctx.stroke();
-            ctx.fillStyle='#1a3a0a'; ctx.font='bold '+pvzFitFont(ctx,this.contentText,this.w,Math.max(11,Math.floor(this.h*0.6)))+'px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(this.contentText,cx,cy);
+            ctx.fillStyle='#1a3a0a'; ctx.font='bold '+pvzFitFont(ctx,this.contentText,this.w,Math.max(18,Math.floor(this.h*0.85)))+'px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(this.contentText,cx,cy);
             ctx.restore();
         };
         pvzBullet.prototype.hitTest=function(px,py){ return px>=this.x-6&&px<=this.x+this.w+6&&py>=this.y-6&&py<=this.y+this.h+6; };
@@ -2121,7 +2357,7 @@
         function pvzSpawnWave(){
             // 当前波次的僵尸按序交替出现（中等难度 + 速度微随机营造趣味）
             var waveList=pvzWAVE[pvzWave-1];
-            var baseSpeed=pvzWave===1?11000:9000;
+            var baseSpeed=pvzWave===1?16500:13500;
             var delay=0;
             for(var i=0;i<waveList.length;i++){
                 var bossIdx=waveList[i];
@@ -2142,7 +2378,7 @@
             for(var k=0;k<waveList.length;k++){ var bi=waveList[k]; var boss=pvzBOSS[bi]; for(var j=0;j<boss.content.length;j++){ all.push({bi:bi,text:boss.content[j]}); } }
             pvzShuffle(all);
             // 布置到画布下方卡片区（与僵尸行进路线分开，互不遮挡）
-            var cardW=244, cardH=26, gap=8;
+            var cardW=256, cardH=36, gap=6;
             var cols=Math.max(2,Math.floor((pvzW-24+gap)/(cardW+gap)));
             var rows=Math.ceil(all.length/cols);
             var gridH=rows*(cardH+gap);
@@ -2177,18 +2413,18 @@
             pvzDrawPerson(ctx);
         }
         function pvzDrawPerson(ctx){
-            // 最下方防守的小人（质量守卫），不进入下方卡片区
+            // 最下方防守的小人（质量守卫），尺寸适中，位于防线与卡片区之间，不遮挡僵尸
             var px=pvzPersonX, py=pvzPersonY;
-            ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.beginPath(); ctx.ellipse(px,py+44,52,14,0,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.beginPath(); ctx.ellipse(px,py+8,34,8,0,0,Math.PI*2); ctx.fill();
             // 身体
-            ctx.fillStyle='#2e7d32'; ctx.beginPath(); ctx.ellipse(px,py+16,48,40,0,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#2e7d32'; ctx.beginPath(); ctx.ellipse(px,py-8,30,20,0,0,Math.PI*2); ctx.fill();
             // 头
-            ctx.fillStyle='#ffe0b2'; ctx.beginPath(); ctx.arc(px,py-40,22,0,Math.PI*2); ctx.fill();
-            ctx.fillStyle='#4e342e'; ctx.beginPath(); ctx.arc(px-8,py-44,5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(px+8,py-44,5,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#ffe0b2'; ctx.beginPath(); ctx.arc(px,py-30,14,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#4e342e'; ctx.beginPath(); ctx.arc(px-5,py-32,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(px+5,py-32,3,0,Math.PI*2); ctx.fill();
             // 盾牌
-            ctx.fillStyle='#1565c0'; pvzRoundRect(ctx,px+30,py-12,30,44,14); ctx.fill();
-            ctx.strokeStyle='#0d47a1'; ctx.lineWidth=4; pvzRoundRect(ctx,px+30,py-12,30,44,14); ctx.stroke();
-            ctx.fillStyle='#fff'; ctx.font='bold 20px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('质',px+45,py+10);
+            ctx.fillStyle='#1565c0'; pvzRoundRect(ctx,px+20,py-14,20,30,9); ctx.fill();
+            ctx.strokeStyle='#0d47a1'; ctx.lineWidth=3; pvzRoundRect(ctx,px+20,py-14,20,30,9); ctx.stroke();
+            ctx.fillStyle='#fff'; ctx.font='bold 14px "Microsoft YaHei"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('质',px+30,py+1);
         }
         function pvzDrawCardPanel(ctx){
             // 下方子弹卡片区背景面板（与僵尸行进路线分隔）
@@ -2264,10 +2500,11 @@
         function pvzShowWin(){ pvzRunning=false; clearInterval(pvzTimerInterval); clearTimeout(pvzSpawnTimer); cancelAnimationFrame(pvzAnimId); cancelAnimationFrame(pvzParticleAnimId);
             var used=Math.round(pvzTotalTimeStart>0?(Date.now()-pvzTotalTimeStart)/1000:lvl3.seconds);
             lvl3.seconds=used;
-            var totalTime=(typeof seconds==='number'?seconds:0)+(lvl2.seconds||0)+used;
-            saveTotalRanking(totalTime);
+            recordLevelTime(3, used);
+            var bestTimes = getCurrentLevelTimes();
+            var bestTotal = (bestTimes.level1||0)+(bestTimes.level2||0)+(bestTimes.level3||0);
             var s=document.getElementById('pWinScreen'); if(s) s.style.display='flex';
-            var sub=document.getElementById('pWinSub'); if(sub) sub.textContent='击败全部僵尸总时长：'+formatTime(used)+' | 三关总时长 '+formatTime(totalTime)+' | 质量文化牢记心中！'; }
+            var sub=document.getElementById('pWinSub'); if(sub) sub.textContent='击败全部僵尸总时长：'+formatTime(used)+' | 三关总时长 '+formatTime(bestTotal)+' | 质量文化牢记心中！'; }
 
         function pvzInitInternal(wave){
             pvzWave=wave; pvzZombies=[]; pvzParticles=[];
@@ -2292,6 +2529,7 @@
             var nb=document.getElementById('pNextWaveBtn'); if(nb){ var nnb=nb.cloneNode(true);nb.parentNode.replaceChild(nnb,nb); nnb.addEventListener('click',function(){ var s=document.getElementById('pWaveScreen'); if(s) s.style.display='none'; pvzInitInternal(2); }); }
             var rb=document.getElementById('pRetryBtn'); if(rb){ var nrb=rb.cloneNode(true);rb.parentNode.replaceChild(nrb,rb); nrb.addEventListener('click',function(){ var s=document.getElementById('pLoseScreen'); if(s) s.style.display='none'; pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1); }); }
             var ab=document.getElementById('pRetryAllBtn'); if(ab){ var nab=ab.cloneNode(true);ab.parentNode.replaceChild(nab,ab); nab.addEventListener('click',function(){ var s=document.getElementById('pWinScreen'); if(s) s.style.display='none'; pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1); }); }
+            var eb=document.getElementById('pEndGameBtn'); if(eb){ var neb=eb.cloneNode(true);eb.parentNode.replaceChild(neb,eb); neb.addEventListener('click',function(){ var s=document.getElementById('pWinScreen'); if(s) s.style.display='none'; lvl3.started=false; switchLevel('rank'); }); }
         }
         function enterLevel3(){ switchLevel(3); }
         function resizePvzCanvas(){ var cv=document.getElementById('pvzCanvas'); if(!cv) return; if(typeof pvzRender==='function'&&cv.getContext){ try{ pvzRender(cv.getContext('2d')); }catch(e){} } }
@@ -2308,6 +2546,8 @@
             var b1 = document.getElementById('navL1Btn');
             var b2 = document.getElementById('navL2Btn');
             var b3 = document.getElementById('navL3Btn');
+            var bRules = document.getElementById('navRulesBtn');
+            var bRank = document.getElementById('navRankBtn');
             var legend = document.querySelector('.legend-section');
             v1.style.display = 'none';
             v2.classList.remove('active');
@@ -2315,7 +2555,12 @@
             b1.classList.remove('active');
             b2.classList.remove('active');
             b3.classList.remove('active');
+            if (bRules) bRules.classList.remove('active');
+            if (bRank) bRank.classList.remove('active');
             if (legend) legend.style.display = 'none';
+            // 隐藏游戏说明/排行榜页签
+            if (rulesView) rulesView.classList.remove('active');
+            if (rankView) rankView.classList.remove('active');
             // 全屏模式：仅第三关铺满
             if (lv === 3) { document.body.classList.add('pvz-fullpage'); }
             else { document.body.classList.remove('pvz-fullpage'); }
@@ -2323,15 +2568,31 @@
                 v1.style.display = 'block';
                 b1.classList.add('active');
                 if (legend) legend.style.display = 'flex';
+                if (!lvl1IntroShown) {
+                    lvl1IntroShown = true;
+                    var l1s = document.getElementById('lvl1StartOverlay');
+                    if (l1s) l1s.classList.add('active');
+                }
             } else if (lv === 2) {
                 v2.classList.add('active');
                 b2.classList.add('active');
                 if (!lvl2.started) startLvl2();
-            } else {
+                if (!lvl2.introShown) {
+                    lvl2.introShown = true;
+                    var l2s = document.getElementById('lvl2StartOverlay');
+                    if (l2s) l2s.classList.add('active');
+                }
+            } else if (lv === 3) {
                 v3.classList.add('active');
                 b3.classList.add('active');
                 if (!lvl3.started) startLvl3();
                 setTimeout(resizePvzCanvas, 60);
+            } else if (lv === 'rules') {
+                if (bRules) bRules.classList.add('active');
+                showRules();
+            } else if (lv === 'rank') {
+                if (bRank) bRank.classList.add('active');
+                showRanking();
             }
         }
 
@@ -2341,10 +2602,9 @@
             switchLevel(2);
         }
 
-        function unlockLvl2() {
-            lvl2Unlocked = true;
-            var b2 = document.getElementById('navL2Btn');
-            if (b2) b2.disabled = false;
+        function unlockLvl3Nav() {
+            var b3 = document.getElementById('navL3Btn');
+            if (b3) b3.disabled = false;
         }
 
         // ==================== 第二关启动 ====================
@@ -2600,17 +2860,8 @@ function endLvl2() {
             if (fT) fT.textContent = formatTime(lvl2.seconds);
             var fS = document.getElementById('finalScore2');
             if (fS) fS.textContent = '得分: ' + lvl2.score + ' | 错误: ' + lvl2.wrong + '次';
-            var now = new Date();
-            var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-            var entry = { time: lvl2.seconds, score: lvl2.score, date: dateStr, level: 2 };
-            var pers = getPersonalRankings();
-            pers.push(entry);
-            localStorage.setItem('personalRankings', JSON.stringify(pers));
-            var glob = getGlobalRankings();
-            glob.push(entry);
-            glob.sort(function(a, b) { return a.time - b.time; });
-            if (glob.length > 100) glob.length = 100;
-            localStorage.setItem('globalRankings', JSON.stringify(glob));
+            recordLevelTime(2, lvl2.seconds);
+            unlockLvl3Nav();
             var l2c = document.getElementById('lvl2CompleteOverlay');
             if (l2c) { requestAnimationFrame(function() { l2c.classList.add('active'); spawnConfetti(); }); }
         }
@@ -2643,8 +2894,7 @@ function restartLvl2() {
             });
         }// ==================== Start ====================
         setupGrowthDrop();
-        initGame();
-        renderLegend();
+        initPlayerIdModal();
     </script>
 </body>
 </html>
