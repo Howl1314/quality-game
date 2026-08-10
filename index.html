@@ -1317,9 +1317,12 @@
 
         // ==================== Player ID ====================
         var currentPlayerId = '';
-        var PLAYER_ID_KEY = 'qualityTreePlayerId';
+        var ALL_TOTAL_KEY = 'qualityTreeAllTotalRankings';
         var ALL_TOTAL_KEY = 'qualityTreeAllTotalRankings';
         var LEVEL_TIMES_PREFIX = 'qualityTreeLevelTimes_';
+        // ===== CloudBase API 地址（替换成你的真实链接）=====
+        var API_SUBMIT = 'https://quality-game-d5gu81ui847a86483-1466081733.ap-shanghai.app.tcloudbase.com/submitScore';
+        var API_RANK   = 'https://quality-game-d5gu81ui847a86483-1466081733.ap-shanghai.app.tcloudbase.com/getRanking';
 
         function isValidPlayerId(id) {
             return typeof id === 'string' && /^60\d{6}$/.test(id);
@@ -1330,9 +1333,21 @@
         function setStoredPlayerId(id) {
             try { localStorage.setItem(PLAYER_ID_KEY, id); } catch(e){}
         }
-        function getAllTotalRankings() {
-            try { return JSON.parse(localStorage.getItem(ALL_TOTAL_KEY) || '[]'); }
-            catch(e){ return []; }
+        // 从云端获取总排行榜（异步）
+        async function getAllTotalRankings() {
+            try {
+                var res = await fetch(API_RANK, { method: 'GET' });
+                var json = await res.json();
+                if (json.code === 0) return json.data || [];
+                return [];
+            } catch(e) {
+                console.error('获取排行榜失败', e);
+                return [];
+            }
+        }
+        // 本地缓存不再用于总排行榜，保留函数兼容旧代码
+        function setAllTotalRankings(list) {
+            // 总排行榜已迁移到云端，此函数不再使用
         }
         function setAllTotalRankings(list) {
             try { localStorage.setItem(ALL_TOTAL_KEY, JSON.stringify(list)); } catch(e){}
@@ -1368,38 +1383,29 @@
             return false;
         }
 
-        function updateBestTotalRanking(times) {
+        // 提交成绩到云端（异步，不阻塞游戏）
+        async function updateBestTotalRanking(times) {
             if (!currentPlayerId) return;
             var l1 = times.level1, l2 = times.level2, l3 = times.level3;
-            // 三关都有成绩时才参与总排行榜
+            // 三关都有成绩时才提交
             if (!l1 || !l2 || !l3) return;
             var total = l1 + l2 + l3;
-            var list = getAllTotalRankings();
-            var existingIndex = -1;
-            for (var i = 0; i < list.length; i++) {
-                if (list[i].id === currentPlayerId) { existingIndex = i; break; }
-            }
-            var now = formatDateNow();
-            var entry = {
-                id: currentPlayerId,
-                totalTime: total,
-                level1Time: l1,
-                level2Time: l2,
-                level3Time: l3,
-                date: now
-            };
-            var needUpdate = false;
-            if (existingIndex === -1) {
-                list.push(entry);
-                needUpdate = true;
-            } else if (total < list[existingIndex].totalTime) {
-                list[existingIndex] = entry;
-                needUpdate = true;
-            }
-            if (needUpdate) {
-                list.sort(function(a,b){ return a.totalTime - b.totalTime; });
-                if (list.length > 100) list.length = 100;
-                setAllTotalRankings(list);
+            try {
+                var res = await fetch(API_SUBMIT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: currentPlayerId,
+                        totalTime: total,
+                        level1Time: l1,
+                        level2Time: l2,
+                        level3Time: l3
+                    })
+                });
+                var json = await res.json();
+                console.log('提交成绩结果:', json);
+            } catch(e) {
+                console.error('提交成绩失败', e);
             }
         }
 
@@ -2016,7 +2022,7 @@
         // ==================== Rankings ====================
         var currentRankTab = 'total';
 
-        function renderRankings() {
+        async function renderRankings() {
             rankList.innerHTML = '';
             var searchInput = document.getElementById('rankSearchInput');
             if (searchInput) searchInput.style.display = (currentRankTab === 'total') ? '' : 'none';
@@ -2024,14 +2030,16 @@
             if (playerDisplay) {
                 playerDisplay.textContent = currentPlayerId ? '当前工号：' + currentPlayerId : '未输入工号';
             }
-
-            // 1) 总排行榜：所有玩家三关最短总时长排名
+        
+            // 1) 总排行榜：从云端获取所有玩家数据
             if (currentRankTab === 'total') {
-                var all = getAllTotalRankings();
+                rankList.innerHTML = '<div class="rank-empty">加载中...</div>';
+                var all = await getAllTotalRankings();
                 if (all.length === 0) {
                     rankList.innerHTML = '<div class="rank-empty">暂无记录，通关全部三关后生成排行！</div>';
                     return;
                 }
+                rankList.innerHTML = '';
                 for (var i = 0; i < all.length; i++) {
                     var e = all[i];
                     var isMe = e.id === currentPlayerId;
@@ -2051,8 +2059,8 @@
                 rankList.appendChild(cnt);
                 return;
             }
-
-            // 2) 个人排行榜：当前工号三关各自最好成绩 + 总最好成绩
+        
+            // 2) 个人排行榜：当前工号三关各自最好成绩（仍存本地）
             if (currentRankTab === 'personal') {
                 var times = currentPlayerId ? getCurrentLevelTimes() : {};
                 if (!currentPlayerId || (!times.level1 && !times.level2 && !times.level3)) {
@@ -2123,19 +2131,19 @@
         function closeLvl1Start() { document.getElementById('lvl1StartOverlay').classList.remove('active'); }
         function closeLvl2Start() { document.getElementById('lvl2StartOverlay').classList.remove('active'); }
 
-        function switchRankTab(tab) {
+        async function switchRankTab(tab) {
             currentRankTab = tab;
             var tabs = document.querySelectorAll('.rank-tab');
             for (var i = 0; i < tabs.length; i++) {
                 tabs[i].classList.toggle('active', tabs[i].dataset.tab === tab);
             }
-            renderRankings();
+            await renderRankings();
         }
 
         // ==================== Overlay Controls ====================
         function showRules() { currentRulesTab = 'level1'; switchRulesTab('level1'); if (rulesView) rulesView.classList.add('active'); }
         function closeRules() { if (rulesView) rulesView.classList.remove('active'); }
-        function showRanking() { renderRankings(); if (rankView) rankView.classList.add('active'); }
+        async function showRanking() { await renderRankings(); if (rankView) rankView.classList.add('active'); }
         function closeRanking() { if (rankView) rankView.classList.remove('active'); }
         function closeComplete() { completeOverlay.classList.remove('active'); }
         function restartFromComplete() {
