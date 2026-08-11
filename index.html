@@ -1344,6 +1344,25 @@
                 return [];
             }
         }
+        // 登录时从服务端拉取该工号的最好成绩，同步到本地缓存
+        async function syncLocalTimesFromServer(id) {
+            if (!id) return;
+            try {
+                var res = await fetch(API_RANK + '?id=' + encodeURIComponent(id), { method: 'GET' });
+                var json = await res.json();
+                if (json.code === 0 && json.data && json.data.length > 0) {
+                    var r = json.data[0];
+                    var times = {};
+                    if ((r.level1Time || 0) > 0) { times.level1 = r.level1Time; times.level1Date = r.date || ''; }
+                    if ((r.level2Time || 0) > 0) { times.level2 = r.level2Time; times.level2Date = r.date || ''; }
+                    if ((r.level3Time || 0) > 0) { times.level3 = r.level3Time; times.level3Date = r.date || ''; }
+                    setCurrentLevelTimes(times);
+                    console.log('本地成绩已同步:', times);
+                }
+            } catch(e) {
+                console.error('同步本地成绩失败', e);
+            }
+        }
         function getCurrentLevelTimes() {
             if (!currentPlayerId) return {};
             try { return JSON.parse(localStorage.getItem(LEVEL_TIMES_PREFIX + currentPlayerId) || '{}'); }
@@ -1449,6 +1468,8 @@
             switchLevel(1);
             initGame();
             renderLegend();
+            // 从服务端拉取该工号的最好成绩同步到本地，避免本地缓存与服务端不一致
+            syncLocalTimesFromServer(id);
         }
 
         function initPlayerIdModal() {
