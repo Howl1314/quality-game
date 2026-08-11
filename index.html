@@ -1387,14 +1387,16 @@
             var times = getCurrentLevelTimes();
             var key = 'level' + level;
             var old = times[key];
+            var improved = false;
             // 只保留该关卡本地最短用时（仅用于本地展示）
             if (old === undefined || seconds < old) {
                 times[key] = seconds;
                 times[key + 'Date'] = formatDateNow();
                 setCurrentLevelTimes(times);
+                improved = true;
             }
-            // 把令牌交给服务端，由服务端计算真实用时并更新排行
-            if (token) updateBestTotalRanking(level, token);
+            // 只有用时刷新了本地最好成绩，才提交给服务端
+            if (token && improved) updateBestTotalRanking(level, token);
             return true;
         }
 
