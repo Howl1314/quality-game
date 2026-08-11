@@ -1272,7 +1272,7 @@
                 <li>🌳 <strong>通关</strong>：8种不同卡片都至少消除一次即可进入下一关</li>
                 <li>📊 <strong>计分</strong>：3个=30分、4个=60分、5个=100分；连击额外加成</li>
             </ul>
-            <button class="btn-primary" onclick="closeLvl1Start()">🎮 开始游戏</button>
+            <button class="btn-primary" onclick="requestLvl1Start(this)">🎮 开始游戏</button>
         </div>
     </div>
 
@@ -1286,7 +1286,7 @@
                 <li>❌ 拖错水桶 → 小树降1级并扣除20分</li>
                 <li>⏱️ 连续正确浇灌8次，让小树长成参天大树即可通关</li>
             </ul>
-            <button class="btn-primary" onclick="closeLvl2Start()">💧 开始浇水</button>
+            <button class="btn-primary" onclick="requestLvl2Start(this)">💧 开始浇水</button>
         </div>
     </div>
 
@@ -1321,6 +1321,7 @@
         // ===== CloudBase API 地址（替换成你的真实链接）=====
         var API_SUBMIT = 'https://quality-game-d5gu81ui847a86483-1466081733.ap-shanghai.app.tcloudbase.com/submitScore';
         var API_RANK   = 'https://quality-game-d5gu81ui847a86483-1466081733.ap-shanghai.app.tcloudbase.com/getRanking';
+        var API_START  = 'https://quality-game-d5gu81ui847a86483-1466081733.ap-shanghai.app.tcloudbase.com/startLevel';
 
         function isValidPlayerId(id) {
             return typeof id === 'string' && /^60\d{6}$/.test(id);
@@ -1358,53 +1359,63 @@
             return now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
         }
 
-        function recordLevelTime(level, seconds) {
+        // 防作弊令牌：每次开始关卡时由服务端下发
+        var levelTokens = { 1: '', 2: '', 3: '' };
+
+        async function fetchLevelToken(level) {
+            if (!currentPlayerId) return null;
+            try {
+                var res = await fetch(API_START, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: currentPlayerId, level: level })
+                });
+                var json = await res.json();
+                console.log('startLevel 返回:', json);
+                if (json.code === 0 && json.data && json.data.token) return json.data.token;
+                showToast(json.msg || '获取关卡令牌失败');
+                return null;
+            } catch (e) {
+                console.error('fetchLevelToken 失败', e);
+                showToast('网络异常，无法开始关卡');
+                return null;
+            }
+        }
+
+        function recordLevelTime(level, seconds, token) {
             if (!currentPlayerId) return false;
             var times = getCurrentLevelTimes();
             var key = 'level' + level;
             var old = times[key];
-            // 只保留该关卡最短用时
+            // 只保留该关卡本地最短用时（仅用于本地展示）
             if (old === undefined || seconds < old) {
                 times[key] = seconds;
                 times[key + 'Date'] = formatDateNow();
                 setCurrentLevelTimes(times);
-                updateBestTotalRanking(times);
-                return true;
             }
-            return false;
+            // 把令牌交给服务端，由服务端计算真实用时并更新排行
+            if (token) updateBestTotalRanking(level, token);
+            return true;
         }
 
-        // 提交成绩到云端（异步，不阻塞游戏）
-        async function updateBestTotalRanking(times) {
-            if (!currentPlayerId) return;
-            var l1 = times.level1, l2 = times.level2, l3 = times.level3;
-            // 三关都有成绩时才提交
-            if (!l1 || !l2 || !l3) return;
-            var total = l1 + l2 + l3;
+        // 提交单关令牌到云端（异步，不阻塞游戏）
+        async function updateBestTotalRanking(level, token) {
+            if (!currentPlayerId || !token) return;
             try {
                 var res = await fetch(API_SUBMIT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         id: currentPlayerId,
-                        totalTime: total,
-                        level1Time: l1,
-                        level2Time: l2,
-                        level3Time: l3
+                        level: level,
+                        token: token
                     })
                 });
                 var json = await res.json();
-                console.log('提交成绩结果:', json);
-            } catch(e) {
-                console.error('提交成绩失败', e);
+                console.log('submitScore 返回:', json);
+            } catch (e) {
+                console.error('submitScore 失败', e);
             }
-        }
-
-        // 把当前本地三关最好成绩同步到云端（用于登录后和打开排行榜时手动兜底）
-        async function syncCurrentBestToCloud() {
-            if (!currentPlayerId) return;
-            var times = getCurrentLevelTimes();
-            await updateBestTotalRanking(times);
         }
 
         function showPlayerIdOverlay() {
@@ -1436,8 +1447,6 @@
             switchLevel(1);
             initGame();
             renderLegend();
-            // 登录后，如果本地已有三关成绩，自动同步到云端
-            syncCurrentBestToCloud();
         }
 
         function initPlayerIdModal() {
@@ -1984,7 +1993,7 @@
             if (win) {
                 finalTime.textContent = formatTime(seconds);
                 finalScore.textContent = '得分: ' + score + ' | 步数: ' + moveCount + ' | 最高连击: ' + combo;
-                recordLevelTime(1, seconds);
+                recordLevelTime(1, seconds, levelTokens[1]);
                 // 通关第一关，解锁第二关
                 lvl2Unlocked = true;
                 unlockLvl2Nav();
@@ -2031,10 +2040,9 @@
                 playerDisplay.textContent = currentPlayerId ? '当前工号：' + currentPlayerId : '未输入工号';
             }
 
-            // 1) 总排行榜：先把本地最好成绩同步到云端，再拉取全部排行
+            // 1) 总排行榜：从云端拉取全部排行
             if (currentRankTab === 'total') {
-                rankList.innerHTML = '<div class="rank-empty">同步并加载中...</div>';
-                await syncCurrentBestToCloud();
+                rankList.innerHTML = '<div class="rank-empty">加载中...</div>';
                 var all = await getAllTotalRankings();
                 if (all.length === 0) {
                     rankList.innerHTML = '<div class="rank-empty">暂无记录，通关全部三关后生成排行！</div>';
@@ -2130,7 +2138,23 @@
             }
         }
         function closeLvl1Start() { document.getElementById('lvl1StartOverlay').classList.remove('active'); }
+        async function requestLvl1Start(btn) {
+            if (btn) { btn.disabled = true; btn.textContent = '准备中...'; }
+            var token = await fetchLevelToken(1);
+            if (btn) { btn.disabled = false; btn.textContent = '🎮 开始游戏'; }
+            if (!token) return;
+            levelTokens[1] = token;
+            closeLvl1Start();
+        }
         function closeLvl2Start() { document.getElementById('lvl2StartOverlay').classList.remove('active'); }
+        async function requestLvl2Start(btn) {
+            if (btn) { btn.disabled = true; btn.textContent = '准备中...'; }
+            var token = await fetchLevelToken(2);
+            if (btn) { btn.disabled = false; btn.textContent = '💧 开始浇水'; }
+            if (!token) return;
+            levelTokens[2] = token;
+            closeLvl2Start();
+        }
 
         async function switchRankTab(tab) {
             currentRankTab = tab;
@@ -2151,11 +2175,14 @@
             completeOverlay.classList.remove('active');
             restartGame();
         }
-        function restartGame() {
+        async function restartGame() {
             if (timerInterval) {
                 clearInterval(timerInterval);
                 timerInterval = null;
             }
+            var token = await fetchLevelToken(1);
+            if (!token) return;
+            levelTokens[1] = token;
             initGame();
         }
 
@@ -2509,7 +2536,7 @@
         function pvzShowWin(){ pvzRunning=false; clearInterval(pvzTimerInterval); clearTimeout(pvzSpawnTimer); cancelAnimationFrame(pvzAnimId); cancelAnimationFrame(pvzParticleAnimId);
             var used=Math.round(pvzTotalTimeStart>0?(Date.now()-pvzTotalTimeStart)/1000:lvl3.seconds);
             lvl3.seconds=used;
-            recordLevelTime(3, used);
+            recordLevelTime(3, used, levelTokens[3]);
             var bestTimes = getCurrentLevelTimes();
             var bestTotal = (bestTimes.level1||0)+(bestTimes.level2||0)+(bestTimes.level3||0);
             var s=document.getElementById('pWinScreen'); if(s) s.style.display='flex';
@@ -2534,10 +2561,22 @@
             var ss=document.getElementById('pStartScreen'),ws=document.getElementById('pWinScreen'),ls=document.getElementById('pLoseScreen'),ws2=document.getElementById('pWaveScreen');
             if(ss) ss.style.display='flex'; if(ws) ws.style.display='none'; if(ls) ls.style.display='none'; if(ws2) ws2.style.display='none';
             var tl=document.getElementById('lvl3Timer'); if(tl) tl.textContent='00:00';
-            var sb=document.getElementById('pStartBtn'); if(sb){ var nsb=sb.cloneNode(true);sb.parentNode.replaceChild(nsb,sb); nsb.addEventListener('click',function(){ var s=document.getElementById('pStartScreen'); if(s) s.style.display='none'; pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1); }); }
+
+            async function doStart(hideId, btn){
+                var originalText = btn ? btn.textContent : '';
+                if(btn){ btn.disabled=true; btn.textContent='准备中...'; }
+                var token = await fetchLevelToken(3);
+                if(btn){ btn.disabled=false; btn.textContent=originalText; }
+                if(!token) return;
+                levelTokens[3] = token;
+                var s=document.getElementById(hideId); if(s) s.style.display='none';
+                pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1);
+            }
+
+            var sb=document.getElementById('pStartBtn'); if(sb){ var nsb=sb.cloneNode(true);sb.parentNode.replaceChild(nsb,sb); nsb.addEventListener('click',function(){ doStart('pStartScreen', nsb); }); }
             var nb=document.getElementById('pNextWaveBtn'); if(nb){ var nnb=nb.cloneNode(true);nb.parentNode.replaceChild(nnb,nb); nnb.addEventListener('click',function(){ var s=document.getElementById('pWaveScreen'); if(s) s.style.display='none'; pvzInitInternal(2); }); }
-            var rb=document.getElementById('pRetryBtn'); if(rb){ var nrb=rb.cloneNode(true);rb.parentNode.replaceChild(nrb,rb); nrb.addEventListener('click',function(){ var s=document.getElementById('pLoseScreen'); if(s) s.style.display='none'; pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1); }); }
-            var ab=document.getElementById('pRetryAllBtn'); if(ab){ var nab=ab.cloneNode(true);ab.parentNode.replaceChild(nab,ab); nab.addEventListener('click',function(){ var s=document.getElementById('pWinScreen'); if(s) s.style.display='none'; pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1); }); }
+            var rb=document.getElementById('pRetryBtn'); if(rb){ var nrb=rb.cloneNode(true);rb.parentNode.replaceChild(nrb,rb); nrb.addEventListener('click',function(){ doStart('pLoseScreen', nrb); }); }
+            var ab=document.getElementById('pRetryAllBtn'); if(ab){ var nab=ab.cloneNode(true);ab.parentNode.replaceChild(nab,ab); nab.addEventListener('click',function(){ doStart('pWinScreen', nab); }); }
             var eb=document.getElementById('pEndGameBtn'); if(eb){ var neb=eb.cloneNode(true);eb.parentNode.replaceChild(neb,eb); neb.addEventListener('click',function(){ var s=document.getElementById('pWinScreen'); if(s) s.style.display='none'; lvl3.started=false; switchLevel('rank'); }); }
         }
         function enterLevel3(){ switchLevel(3); }
@@ -2869,7 +2908,7 @@ function endLvl2() {
             if (fT) fT.textContent = formatTime(lvl2.seconds);
             var fS = document.getElementById('finalScore2');
             if (fS) fS.textContent = '得分: ' + lvl2.score + ' | 错误: ' + lvl2.wrong + '次';
-            recordLevelTime(2, lvl2.seconds);
+            recordLevelTime(2, lvl2.seconds, levelTokens[2]);
             unlockLvl3Nav();
             var l2c = document.getElementById('lvl2CompleteOverlay');
             if (l2c) { requestAnimationFrame(function() { l2c.classList.add('active'); spawnConfetti(); }); }
@@ -2880,9 +2919,12 @@ function closeLvl2Complete() {
             if (l2c) l2c.classList.remove('active');
         }
 
-function restartLvl2() {
+async function restartLvl2() {
             var l2c = document.getElementById('lvl2CompleteOverlay');
             if (l2c) l2c.classList.remove('active');
+            var token = await fetchLevelToken(2);
+            if (!token) return;
+            levelTokens[2] = token;
             startLvl2();
         }
 
