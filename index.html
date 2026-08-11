@@ -1344,19 +1344,6 @@
                 return [];
             }
         }
-        // 从云端获取指定工号的个人记录
-        async function getMyRanking(id) {
-            if (!id) return null;
-            try {
-                var res = await fetch(API_RANK + '?id=' + encodeURIComponent(id), { method: 'GET' });
-                var json = await res.json();
-                if (json.code === 0 && json.data && json.data.length > 0) return json.data[0];
-                return null;
-            } catch(e) {
-                console.error('获取个人记录失败', e);
-                return null;
-            }
-        }
         function getCurrentLevelTimes() {
             if (!currentPlayerId) return {};
             try { return JSON.parse(localStorage.getItem(LEVEL_TIMES_PREFIX + currentPlayerId) || '{}'); }
@@ -2050,6 +2037,7 @@
 
         // ==================== Rankings ====================
         var currentRankTab = 'total';
+        var cachedRankingList = null; // 排行榜打开时一次性拉取，供总榜和个人榜共用
 
         async function renderRankings() {
             rankList.innerHTML = '';
@@ -2060,10 +2048,9 @@
                 playerDisplay.textContent = currentPlayerId ? '当前工号：' + currentPlayerId : '未输入工号';
             }
 
-            // 1) 总排行榜：从云端拉取全部排行
+            // 1) 总排行榜：使用打开排行榜时缓存的列表
             if (currentRankTab === 'total') {
-                rankList.innerHTML = '<div class="rank-empty">加载中...</div>';
-                var all = await getAllTotalRankings();
+                var all = cachedRankingList || [];
                 if (all.length === 0) {
                     rankList.innerHTML = '<div class="rank-empty">暂无记录，通关全部三关后生成排行！</div>';
                     return;
@@ -2089,10 +2076,14 @@
                 return;
             }
 
-            // 2) 个人排行榜：从服务端获取当前工号的权威成绩
+            // 2) 个人排行榜：从缓存列表中过滤当前工号记录
             if (currentRankTab === 'personal') {
-                rankList.innerHTML = '<div class="rank-empty">加载中...</div>';
-                var record = currentPlayerId ? await getMyRanking(currentPlayerId) : null;
+                var record = null;
+                if (currentPlayerId && cachedRankingList) {
+                    for (var k = 0; k < cachedRankingList.length; k++) {
+                        if (cachedRankingList[k].id === currentPlayerId) { record = cachedRankingList[k]; break; }
+                    }
+                }
                 if (!record) {
                     rankList.innerHTML = '<div class="rank-empty">暂无个人通关记录，请先游玩三关！</div>';
                     return;
@@ -2172,7 +2163,16 @@
         // ==================== Overlay Controls ====================
         function showRules() { currentRulesTab = 'level1'; switchRulesTab('level1'); if (rulesView) rulesView.classList.add('active'); }
         function closeRules() { if (rulesView) rulesView.classList.remove('active'); }
-        async function showRanking() { await renderRankings(); if (rankView) rankView.classList.add('active'); }
+        async function showRanking() {
+            cachedRankingList = null;
+            await loadRankings();
+            await renderRankings();
+            if (rankView) rankView.classList.add('active');
+        }
+
+        async function loadRankings() {
+            cachedRankingList = await getAllTotalRankings();
+        }
         function closeRanking() { if (rankView) rankView.classList.remove('active'); }
         function closeComplete() { completeOverlay.classList.remove('active'); }
         function restartFromComplete() {
