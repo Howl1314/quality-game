@@ -1272,7 +1272,7 @@
                 <li>🌳 <strong>通关</strong>：8种不同卡片都至少消除一次即可进入下一关</li>
                 <li>📊 <strong>计分</strong>：3个=30分、4个=60分、5个=100分；连击额外加成</li>
             </ul>
-            <button class="btn-primary" onclick="requestLvl1Start(this)">🎮 开始游戏</button>
+            <button class="btn-primary" onclick="closeLvl1Start()">🎮 开始游戏</button>
         </div>
     </div>
 
@@ -1286,7 +1286,7 @@
                 <li>❌ 拖错水桶 → 小树降1级并扣除20分</li>
                 <li>⏱️ 连续正确浇灌8次，让小树长成参天大树即可通关</li>
             </ul>
-            <button class="btn-primary" onclick="requestLvl2Start(this)">💧 开始浇水</button>
+            <button class="btn-primary" onclick="closeLvl2Start()">💧 开始浇水</button>
         </div>
     </div>
 
@@ -1342,6 +1342,19 @@
             } catch(e) {
                 console.error('获取排行榜失败', e);
                 return [];
+            }
+        }
+        // 从云端获取指定工号的个人记录
+        async function getMyRanking(id) {
+            if (!id) return null;
+            try {
+                var res = await fetch(API_RANK + '?id=' + encodeURIComponent(id), { method: 'GET' });
+                var json = await res.json();
+                if (json.code === 0 && json.data && json.data.length > 0) return json.data[0];
+                return null;
+            } catch(e) {
+                console.error('获取个人记录失败', e);
+                return null;
             }
         }
         function getCurrentLevelTimes() {
@@ -1768,12 +1781,19 @@
         }
 
         // ==================== Process Matches ====================
+        var level1Starting = false;
+        var level2Starting = false;
         async function processMatches() {
             while (true) {
                 var matches = findMatches();
                 if (matches.length === 0) break;
 
-                if (!gameStarted) {
+                if (!gameStarted && !level1Starting) {
+                    level1Starting = true;
+                    var token = await fetchLevelToken(1);
+                    level1Starting = false;
+                    if (!token) return;
+                    levelTokens[1] = token;
                     gameStarted = true;
                     startTimer();
                 }
@@ -2069,19 +2089,19 @@
                 return;
             }
 
-            // 2) 个人排行榜：当前工号三关各自最好成绩（仍存本地）
+            // 2) 个人排行榜：从服务端获取当前工号的权威成绩
             if (currentRankTab === 'personal') {
-                var times = currentPlayerId ? getCurrentLevelTimes() : {};
-                if (!currentPlayerId || (!times.level1 && !times.level2 && !times.level3)) {
+                rankList.innerHTML = '<div class="rank-empty">加载中...</div>';
+                var record = currentPlayerId ? await getMyRanking(currentPlayerId) : null;
+                if (!record) {
                     rankList.innerHTML = '<div class="rank-empty">暂无个人通关记录，请先游玩三关！</div>';
                     return;
                 }
-                var bestTotal = (times.level1||0)+(times.level2||0)+(times.level3||0);
                 var rows = [
-                    { label: '🌳 第一关 · 质量消消乐', t: times.level1 },
-                    { label: '🌱 第二关 · 浇水养成', t: times.level2 },
-                    { label: '🌻 第三关 · 植物大战僵尸', t: times.level3 },
-                    { label: '⏱️ 三关总时长（最短）', t: bestTotal, strong: true }
+                    { label: '🌳 第一关 · 质量消消乐', t: record.level1Time },
+                    { label: '🌱 第二关 · 浇水养成', t: record.level2Time },
+                    { label: '🌻 第三关 · 植物大战僵尸', t: record.level3Time },
+                    { label: '⏱️ 三关总时长（最短）', t: record.totalTime, strong: true }
                 ];
                 for (var j = 0; j < rows.length; j++) {
                     var r = rows[j];
@@ -2138,23 +2158,7 @@
             }
         }
         function closeLvl1Start() { document.getElementById('lvl1StartOverlay').classList.remove('active'); }
-        async function requestLvl1Start(btn) {
-            if (btn) { btn.disabled = true; btn.textContent = '准备中...'; }
-            var token = await fetchLevelToken(1);
-            if (btn) { btn.disabled = false; btn.textContent = '🎮 开始游戏'; }
-            if (!token) return;
-            levelTokens[1] = token;
-            closeLvl1Start();
-        }
         function closeLvl2Start() { document.getElementById('lvl2StartOverlay').classList.remove('active'); }
-        async function requestLvl2Start(btn) {
-            if (btn) { btn.disabled = true; btn.textContent = '准备中...'; }
-            var token = await fetchLevelToken(2);
-            if (btn) { btn.disabled = false; btn.textContent = '💧 开始浇水'; }
-            if (!token) return;
-            levelTokens[2] = token;
-            closeLvl2Start();
-        }
 
         async function switchRankTab(tab) {
             currentRankTab = tab;
@@ -2175,14 +2179,12 @@
             completeOverlay.classList.remove('active');
             restartGame();
         }
-        async function restartGame() {
+        function restartGame() {
             if (timerInterval) {
                 clearInterval(timerInterval);
                 timerInterval = null;
             }
-            var token = await fetchLevelToken(1);
-            if (!token) return;
-            levelTokens[1] = token;
+            levelTokens[1] = '';
             initGame();
         }
 
@@ -2542,9 +2544,15 @@
             var s=document.getElementById('pWinScreen'); if(s) s.style.display='flex';
             var sub=document.getElementById('pWinSub'); if(sub) sub.textContent='击败全部僵尸总时长：'+formatTime(used)+' | 三关总时长 '+formatTime(bestTotal)+' | 质量文化牢记心中！'; }
 
-        function pvzInitInternal(wave){
+        async function pvzInitInternal(wave){
             pvzWave=wave; pvzZombies=[]; pvzParticles=[];
-            if(wave===1){ pvzDefeated={}; }
+            if(wave===1){
+                pvzDefeated={};
+                var token = await fetchLevelToken(3);
+                if(!token) return;
+                levelTokens[3] = token;
+                pvzTotalTimeStart = Date.now();
+            }
             pvzGenBullets(wave); // 每波开始前自动刷新为当前波次对应的卡片内容
             pvzSpawnWave();
             pvzStartTimer(); pvzRunning=true;
@@ -2562,15 +2570,10 @@
             if(ss) ss.style.display='flex'; if(ws) ws.style.display='none'; if(ls) ls.style.display='none'; if(ws2) ws2.style.display='none';
             var tl=document.getElementById('lvl3Timer'); if(tl) tl.textContent='00:00';
 
-            async function doStart(hideId, btn){
-                var originalText = btn ? btn.textContent : '';
-                if(btn){ btn.disabled=true; btn.textContent='准备中...'; }
-                var token = await fetchLevelToken(3);
-                if(btn){ btn.disabled=false; btn.textContent=originalText; }
-                if(!token) return;
-                levelTokens[3] = token;
+            function doStart(hideId, btn){
+                levelTokens[3] = '';
                 var s=document.getElementById(hideId); if(s) s.style.display='none';
-                pvzTotalTimeStart=Date.now(); pvzDefeated={}; pvzInitInternal(1);
+                pvzDefeated={}; pvzInitInternal(1);
             }
 
             var sb=document.getElementById('pStartBtn'); if(sb){ var nsb=sb.cloneNode(true);sb.parentNode.replaceChild(nsb,sb); nsb.addEventListener('click',function(){ doStart('pStartScreen', nsb); }); }
@@ -2792,9 +2795,16 @@
             if (w) w.textContent = lvl2.wrong;
         }
 
-function evaluateAnswer(idx) {
+async function evaluateAnswer(idx) {
             if (lvl2.stage >= 8) return;
-            startLvl2Timer();
+            if (!lvl2.timer && !level2Starting) {
+                level2Starting = true;
+                var token = await fetchLevelToken(2);
+                level2Starting = false;
+                if (!token) return;
+                levelTokens[2] = token;
+                startLvl2Timer();
+            }
             if (idx === lvl2.stage) {
                 lvl2.stage++;
                 lvl2.score += 100;
@@ -2919,12 +2929,10 @@ function closeLvl2Complete() {
             if (l2c) l2c.classList.remove('active');
         }
 
-async function restartLvl2() {
+function restartLvl2() {
             var l2c = document.getElementById('lvl2CompleteOverlay');
             if (l2c) l2c.classList.remove('active');
-            var token = await fetchLevelToken(2);
-            if (!token) return;
-            levelTokens[2] = token;
+            levelTokens[2] = '';
             startLvl2();
         }
 
